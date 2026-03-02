@@ -1,0 +1,17 @@
+{
+  "nodes": {
+    "browser1": {
+      "type": "Browser",
+      "params": {
+        "zoom": 1.0,
+        "transparent": 0,
+        "frame_rate": 60,
+        "url": "../examples/webgl-cube.html"
+      }
+    },
+    "vout": { "type": "video_out", "params": {} }
+  },
+  "connections": [
+    { "from": "browser1/texture", "to": "vout/input" }
+  ]
+}
