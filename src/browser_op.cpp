@@ -42,7 +42,11 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4f {
 // =============================================================================
 
 BrowserOp::BrowserOp() {
-    CefManager::acquire();
+    // Note: CefManager::acquire() is NOT called here.
+    // The constructor runs during descriptor probing (VIVID_REGISTER macro),
+    // where the dylib is loaded, probed, and immediately dlclose'd.
+    // CEF cannot survive init → shutdown → re-init in the same process,
+    // so we defer initialization to the first process() call instead.
 }
 
 BrowserOp::~BrowserOp() {
@@ -63,7 +67,9 @@ BrowserOp::~BrowserOp() {
     vivid::gpu::release(staging_view_);
     vivid::gpu::release(bind_group_);
 
-    CefManager::release();
+    if (cef_acquired_) {
+        CefManager::release();
+    }
 }
 
 // =============================================================================
@@ -137,6 +143,12 @@ void BrowserOp::main_thread_update(double /*time*/) {
 void BrowserOp::process(const VividProcessContext* ctx) {
     VividGpuState* gpu = vivid_gpu(ctx);
     if (!gpu) return;
+
+    // Lazy-init CEF (deferred from constructor to avoid probe/dlclose issues)
+    if (!cef_acquired_) {
+        CefManager::acquire();
+        cef_acquired_ = true;
+    }
 
     // Lazy-init GPU pipeline
     if (!pipeline_) {

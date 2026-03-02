@@ -47,6 +47,7 @@ struct BrowserOp : vivid::OperatorBase {
 
 private:
     // CEF state
+    bool                          cef_acquired_ = false;
     CefRefPtr<VividRenderHandler> render_handler_;
     CefRefPtr<VividCefClient>     client_;
     std::string                   last_url_;
