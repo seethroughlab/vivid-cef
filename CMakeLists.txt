@@ -10,6 +10,9 @@
 cmake_minimum_required(VERSION 3.16)
 project(vivid-cef)
 
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 if(NOT VIVID_SRC_DIR)
     message(FATAL_ERROR "VIVID_SRC_DIR not set — this package must be built via vivid's PackageManager")
 endif()
@@ -226,6 +229,7 @@ if(APPLE)
         "-framework CoreGraphics"
         "-framework AppKit"
     )
+    target_link_options(browser PRIVATE -undefined dynamic_lookup)
     set_target_properties(browser PROPERTIES
         INSTALL_RPATH "@loader_path"
         BUILD_WITH_INSTALL_RPATH TRUE
@@ -255,7 +259,21 @@ if(APPLE)
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CEF_FRAMEWORK_DIR}"
             "${CMAKE_BINARY_DIR}/Chromium Embedded Framework.framework"
-        COMMENT "[vivid-cef] Copying CEF framework to build directory"
+        # Fix CEF framework reference: plugins are loaded via dlopen so
+        # @executable_path resolves to the host app, not the plugin dir.
+        # Use @loader_path so the framework is found next to the dylib.
+        COMMAND install_name_tool -change
+            "@executable_path/../Frameworks/Chromium Embedded Framework.framework/Chromium Embedded Framework"
+            "@loader_path/Chromium Embedded Framework.framework/Chromium Embedded Framework"
+            "${CMAKE_BINARY_DIR}/browser${VIVID_PLUGIN_SUFFIX}"
+        COMMENT "[vivid-cef] Copying CEF framework and fixing plugin rpath"
+    )
+    add_custom_command(TARGET vivid-cef-helper POST_BUILD
+        COMMAND install_name_tool -change
+            "@executable_path/../Frameworks/Chromium Embedded Framework.framework/Chromium Embedded Framework"
+            "@executable_path/Chromium Embedded Framework.framework/Chromium Embedded Framework"
+            "${CMAKE_BINARY_DIR}/vivid-cef-helper"
+        COMMENT "[vivid-cef] Fixing helper rpath"
     )
 elseif(WIN32)
     add_custom_command(TARGET browser POST_BUILD
