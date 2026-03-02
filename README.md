@@ -29,11 +29,23 @@ vivid packages install https://github.com/seethroughlab/vivid-cef
 
 ## Examples
 
+HTML pages:
+
 - `examples/hello-world.html` — basic HTML/CSS rendering
-- `examples/webgl-cube.html` — rotating WebGL cube
+- `examples/hello.html` — minimal hello page
+- `examples/webgl-cube.html` — rotating WebGL cube (won't render — see Known Issues)
 - `examples/dashboard.html` — animated data dashboard
 - `examples/transparent-overlay.html` — transparent overlay with live clock
 - `examples/interactive.html` — mouse/keyboard interaction test (cursor tracking, click dots, scroll resize, key display)
+
+Graphs:
+
+- `graphs/browser_hello.json` — loads `hello.html` into a Browser operator and pipes to video output
+- `graphs/browser_webgl.json` — loads `webgl-cube.html` (demonstrates the WebGL limitation)
+
+### Graph Format
+
+String params (like `url`) go inside the `"params"` object alongside numeric params — the Vivid graph parser separates strings from numbers by type. There is no separate `"string_params"` key at the node level.
 
 ## How It Works
 
@@ -59,22 +71,25 @@ When the Vivid UI is hidden (tilde key), mouse and keyboard events are forwarded
 
 ## Known Issues
 
-### Fixed: CEF re-initialization crash
+### WebGL doesn't work
+
+`--disable-gpu` is required in single-process mode, which prevents GL context creation inside the browser. CSS/HTML/JS rendering works fine — only WebGL and WebGPU content won't render.
+
+### Architecture: single-process mode
+
+CEF runs with `--single-process` because Mach port rendezvous IPC fails when CEF is loaded as a `dlopen`'d plugin rather than the main executable. This means no GPU subprocess, no network service subprocess, and no renderer subprocess — everything runs on the main thread. The `Cannot use V8 Proxy resolver in single process mode` warning is benign.
+
+### Historical: CEF re-initialization crash
 
 CEF cannot be initialized, shut down, and re-initialized in the same process. Vivid's plugin probing (`scan_deferred`) opens each dylib, calls `vivid_descriptor()`, then `dlclose`s it. When the dylib was later reopened for real use, `CefInitialize()` would crash with SIGSEGV.
 
 **Fix:** `CefManager::acquire()` was moved out of the `BrowserOp` constructor into `process()`, so CEF is only initialized when the operator actually runs — not during descriptor probing.
 
-### Fixed: CEF GPU subprocess crash loop (libGLESv2.dylib not found)
-
-CEF's GPU subprocess (`vivid-cef-helper --type=gpu-process`) looks for `libGLESv2.dylib` and `libEGL.dylib` next to the helper binary. These libraries ship inside `Chromium Embedded Framework.framework/Libraries/` but the subprocess doesn't look there.
-
-**Fix (temporary):** Symlinks from the build directory to the framework Libraries. Needs to be made permanent via a post-build step in CMakeLists.txt.
-
-### WIP: Browser not rendering (black output)
-
-CEF initializes, the browser is created, and no errors are reported, but `OnPaint` is never called. The `url.str_value` may not be reaching `update_url()` — needs debug logging to verify the file parameter pipeline is working end-to-end. The URL loading path (graph `string_params` -> scheduler `file_param_storage` -> `ctx->file_param_values` -> `vivid_process` wrapper -> `url.str_value`) has several handoff points to check.
-
 ## Other Limitations
 
 - **CPU pixel path** — CEF's OnAcceleratedPaint with shared textures is not available on macOS. Pixel upload is ~0.5-1ms for 720p on Apple Silicon.
+- **No WebGL/WebGPU** — GPU is disabled in single-process mode, so GPU-accelerated web content won't render.
+
+## Roadmap
+
+- Audio output from the browser (route CEF audio to a Vivid audio output port)
