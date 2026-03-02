@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1a1a2e;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    font-family: 'Courier New', monospace;
+    cursor: none;
+  }
+  #cursor-circle {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(0, 255, 200, 0.6);
+    border: 2px solid rgba(0, 255, 200, 0.9);
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    transition: background 0.1s;
+  }
+  .dot {
+    position: absolute;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    animation: fade 3s forwards;
+  }
+  @keyframes fade {
+    0% { opacity: 0.9; transform: translate(-50%, -50%) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
+  }
+  #info {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  #keys {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 28px;
+    text-align: right;
+    max-width: 400px;
+    word-wrap: break-word;
+  }
+  #coords {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+  <div id="cursor-circle"></div>
+  <div id="coords">mouse: ---, ---</div>
+  <div id="keys"></div>
+  <div id="info">
+    move mouse &mdash; circle follows<br>
+    click &mdash; leave a dot<br>
+    scroll &mdash; change circle size<br>
+    type &mdash; keys appear top-right
+  </div>
+
+<script>
+  const circle = document.getElementById('cursor-circle');
+  const coordsEl = document.getElementById('coords');
+  const keysEl = document.getElementById('keys');
+
+  let circleSize = 40;
+  let hue = 160;
+  let keyBuffer = '';
+
+  circle.style.width = circleSize + 'px';
+  circle.style.height = circleSize + 'px';
+
+  function updateCircleColor() {
+    circle.style.background = `hsla(${hue}, 100%, 60%, 0.6)`;
+    circle.style.borderColor = `hsla(${hue}, 100%, 70%, 0.9)`;
+  }
+  updateCircleColor();
+
+  document.addEventListener('mousemove', (e) => {
+    circle.style.left = e.clientX + 'px';
+    circle.style.top = e.clientY + 'px';
+    coordsEl.textContent = `mouse: ${e.clientX}, ${e.clientY}`;
+  });
+
+  document.addEventListener('mousedown', (e) => {
+    // Change hue on click
+    hue = (hue + 37) % 360;
+    updateCircleColor();
+
+    // Leave a dot
+    const dot = document.createElement('div');
+    dot.className = 'dot';
+    dot.style.left = e.clientX + 'px';
+    dot.style.top = e.clientY + 'px';
+    dot.style.width = circleSize + 'px';
+    dot.style.height = circleSize + 'px';
+    dot.style.background = `hsla(${hue}, 100%, 60%, 0.7)`;
+    document.body.appendChild(dot);
+
+    // Clean up after animation
+    setTimeout(() => dot.remove(), 3000);
+  });
+
+  document.addEventListener('wheel', (e) => {
+    circleSize = Math.max(10, Math.min(200, circleSize - e.deltaY * 0.3));
+    circle.style.width = circleSize + 'px';
+    circle.style.height = circleSize + 'px';
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key.length === 1) {
+      keyBuffer += e.key;
+    } else if (e.key === 'Backspace') {
+      keyBuffer = keyBuffer.slice(0, -1);
+    } else if (e.key === 'Enter') {
+      keyBuffer += '\n';
+    } else {
+      keyBuffer += `[${e.key}]`;
+    }
+    // Keep last 80 chars
+    if (keyBuffer.length > 80) {
+      keyBuffer = keyBuffer.slice(-80);
+    }
+    keysEl.textContent = keyBuffer;
+  });
+</script>
+</body>
+</html>

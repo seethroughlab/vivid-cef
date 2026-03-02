@@ -1,12 +1,85 @@
 #include "browser_op.h"
 #include "cef_manager.h"
 #include "operator_api/gpu_common.h"
+#include "operator_api/input_state.h"
 
 #include <include/cef_browser.h>
 
 #include <cstdio>
 #include <cstring>
 #include <vector>
+
+// =============================================================================
+// GLFW → CEF input translation helpers
+// =============================================================================
+
+static cef_mouse_button_type_t glfw_to_cef_button(int button) {
+    switch (button) {
+        case 0: return MBT_LEFT;
+        case 1: return MBT_RIGHT;
+        case 2: return MBT_MIDDLE;
+        default: return MBT_LEFT;
+    }
+}
+
+static uint32_t glfw_to_cef_modifiers(int mods, int buttons_held = 0) {
+    uint32_t cef_mods = 0;
+    if (mods & 1) cef_mods |= EVENTFLAG_SHIFT_DOWN;        // shift
+    if (mods & 2) cef_mods |= EVENTFLAG_CONTROL_DOWN;      // ctrl
+    if (mods & 4) cef_mods |= EVENTFLAG_ALT_DOWN;          // alt
+    if (mods & 8) cef_mods |= EVENTFLAG_COMMAND_DOWN;      // super
+    if (buttons_held & 1) cef_mods |= EVENTFLAG_LEFT_MOUSE_BUTTON;
+    if (buttons_held & 2) cef_mods |= EVENTFLAG_RIGHT_MOUSE_BUTTON;
+    if (buttons_held & 4) cef_mods |= EVENTFLAG_MIDDLE_MOUSE_BUTTON;
+    return cef_mods;
+}
+
+// Map common GLFW key codes to CEF/Windows virtual key codes.
+// Full mapping is large; this covers the most important keys.
+static int glfw_to_cef_keycode(int glfw_key) {
+    // Alphanumeric keys: GLFW uses ASCII codes which match VK_ codes
+    if (glfw_key >= 32 && glfw_key <= 126) return glfw_key;
+
+    switch (glfw_key) {
+        case 256: return 0x1B;    // GLFW_KEY_ESCAPE → VK_ESCAPE
+        case 257: return 0x0D;    // GLFW_KEY_ENTER → VK_RETURN
+        case 258: return 0x09;    // GLFW_KEY_TAB → VK_TAB
+        case 259: return 0x08;    // GLFW_KEY_BACKSPACE → VK_BACK
+        case 260: return 0x2D;    // GLFW_KEY_INSERT → VK_INSERT
+        case 261: return 0x2E;    // GLFW_KEY_DELETE → VK_DELETE
+        case 262: return 0x27;    // GLFW_KEY_RIGHT → VK_RIGHT
+        case 263: return 0x25;    // GLFW_KEY_LEFT → VK_LEFT
+        case 264: return 0x28;    // GLFW_KEY_DOWN → VK_DOWN
+        case 265: return 0x26;    // GLFW_KEY_UP → VK_UP
+        case 266: return 0x21;    // GLFW_KEY_PAGE_UP → VK_PRIOR
+        case 267: return 0x22;    // GLFW_KEY_PAGE_DOWN → VK_NEXT
+        case 268: return 0x24;    // GLFW_KEY_HOME → VK_HOME
+        case 269: return 0x23;    // GLFW_KEY_END → VK_END
+        case 280: return 0x14;    // GLFW_KEY_CAPS_LOCK → VK_CAPITAL
+        case 290: return 0x70;    // GLFW_KEY_F1 → VK_F1
+        case 291: return 0x71;    // GLFW_KEY_F2
+        case 292: return 0x72;    // GLFW_KEY_F3
+        case 293: return 0x73;    // GLFW_KEY_F4
+        case 294: return 0x74;    // GLFW_KEY_F5
+        case 295: return 0x75;    // GLFW_KEY_F6
+        case 296: return 0x76;    // GLFW_KEY_F7
+        case 297: return 0x77;    // GLFW_KEY_F8
+        case 298: return 0x78;    // GLFW_KEY_F9
+        case 299: return 0x79;    // GLFW_KEY_F10
+        case 300: return 0x7A;    // GLFW_KEY_F11
+        case 301: return 0x7B;    // GLFW_KEY_F12
+        case 340: return 0x10;    // GLFW_KEY_LEFT_SHIFT → VK_SHIFT
+        case 341: return 0x11;    // GLFW_KEY_LEFT_CONTROL → VK_CONTROL
+        case 342: return 0x12;    // GLFW_KEY_LEFT_ALT → VK_MENU
+        case 343: return 0x5B;    // GLFW_KEY_LEFT_SUPER → VK_LWIN
+        case 344: return 0x10;    // GLFW_KEY_RIGHT_SHIFT
+        case 345: return 0x11;    // GLFW_KEY_RIGHT_CONTROL
+        case 346: return 0x12;    // GLFW_KEY_RIGHT_ALT
+        case 347: return 0x5C;    // GLFW_KEY_RIGHT_SUPER → VK_RWIN
+        case 32:  return 0x20;    // GLFW_KEY_SPACE → VK_SPACE
+        default:  return 0;
+    }
+}
 
 // =============================================================================
 // Blit WGSL — identical to MovieFileIn's blit shader
@@ -184,6 +257,73 @@ void BrowserOp::process(const VividProcessContext* ctx) {
             // CEF zoom is logarithmic: 0 = 100%, positive = zoom in
             double cef_zoom = std::log(static_cast<double>(zoom.value)) / std::log(1.2);
             client_->browser()->GetHost()->SetZoomLevel(cef_zoom);
+        }
+    }
+
+    // --- Forward input events to CEF ---
+    const VividInputState* input = vivid_input(ctx);
+    if (input && client_ && client_->browser()) {
+        auto host = client_->browser()->GetHost();
+        for (uint32_t i = 0; i < input->event_count; ++i) {
+            const auto& ev = input->events[i];
+            int px = static_cast<int>(ev.mouse_x * kBrowserWidth);
+            int py = static_cast<int>(ev.mouse_y * kBrowserHeight);
+
+            switch (ev.type) {
+                case VIVID_INPUT_MOUSE_MOVE: {
+                    CefMouseEvent me;
+                    me.x = px;
+                    me.y = py;
+                    me.modifiers = glfw_to_cef_modifiers(ev.modifiers, input->buttons_held);
+                    host->SendMouseMoveEvent(me, false);
+                    break;
+                }
+                case VIVID_INPUT_MOUSE_BUTTON: {
+                    CefMouseEvent me;
+                    me.x = px;
+                    me.y = py;
+                    me.modifiers = glfw_to_cef_modifiers(ev.modifiers, input->buttons_held);
+                    bool up = (ev.action == 0);  // 0=release
+                    host->SendMouseClickEvent(me, glfw_to_cef_button(ev.button), up, 1);
+                    break;
+                }
+                case VIVID_INPUT_MOUSE_SCROLL: {
+                    CefMouseEvent me;
+                    me.x = px;
+                    me.y = py;
+                    me.modifiers = glfw_to_cef_modifiers(ev.modifiers, input->buttons_held);
+                    // CEF expects scroll deltas in pixels; 120 is one "notch"
+                    host->SendMouseWheelEvent(me,
+                        static_cast<int>(ev.scroll_dx * 120),
+                        static_cast<int>(ev.scroll_dy * 120));
+                    break;
+                }
+                case VIVID_INPUT_KEY: {
+                    CefKeyEvent ke;
+                    ke.windows_key_code = glfw_to_cef_keycode(ev.key);
+                    ke.native_key_code = ev.scancode;
+                    ke.modifiers = glfw_to_cef_modifiers(ev.modifiers);
+                    ke.is_system_key = false;
+                    if (ev.action == 1 || ev.action == 2)  // press or repeat
+                        ke.type = KEYEVENT_RAWKEYDOWN;
+                    else
+                        ke.type = KEYEVENT_KEYUP;
+                    host->SendKeyEvent(ke);
+                    break;
+                }
+                case VIVID_INPUT_CHAR: {
+                    CefKeyEvent ke;
+                    ke.type = KEYEVENT_CHAR;
+                    ke.windows_key_code = static_cast<int>(ev.codepoint);
+                    ke.character = static_cast<char16_t>(ev.codepoint);
+                    ke.unmodified_character = ke.character;
+                    ke.native_key_code = 0;
+                    ke.modifiers = glfw_to_cef_modifiers(ev.modifiers);
+                    ke.is_system_key = false;
+                    host->SendKeyEvent(ke);
+                    break;
+                }
+            }
         }
     }
 
