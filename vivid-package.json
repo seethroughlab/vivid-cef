@@ -1,0 +1,7 @@
+{
+  "name": "vivid-cef",
+  "version": "0.1.0",
+  "description": "CEF browser operator — render HTML/CSS/JS/WebGL as GPU textures",
+  "build": "cmake",
+  "gpu_operators": ["browser"]
+}
