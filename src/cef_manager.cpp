@@ -31,11 +31,8 @@ public:
 
     void OnBeforeCommandLineProcessing(const CefString& /*process_type*/,
                                        CefRefPtr<CefCommandLine> cmd) override {
-        cmd->AppendSwitch("disable-gpu-shader-disk-cache");
-        cmd->AppendSwitch("enable-gpu");
-        cmd->AppendSwitch("enable-webgl");
-        cmd->AppendSwitch("ignore-gpu-blocklist");
-        cmd->AppendSwitch("enable-gpu-compositing");
+        cmd->AppendSwitch("disable-gpu");
+        cmd->AppendSwitch("disable-gpu-compositing");
         cmd->AppendSwitch("use-mock-keychain");
         cmd->AppendSwitch("disable-extensions");
         cmd->AppendSwitch("disable-spell-checking");
