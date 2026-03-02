@@ -183,6 +183,13 @@ void BrowserOp::update_url(const std::string& new_url) {
 
     if (new_url.empty()) return;
 
+    // Vivid's scheduler resolves FilePath params to absolute paths.
+    // CEF needs a URL scheme — prepend file:// for local paths.
+    std::string resolved = new_url;
+    if (resolved.find("://") == std::string::npos) {
+        resolved = "file://" + resolved;
+    }
+
     if (!client_) {
         create_browser();
     }
@@ -190,11 +197,11 @@ void BrowserOp::update_url(const std::string& new_url) {
     if (client_->browser()) {
         auto frame = client_->browser()->GetMainFrame();
         if (frame) {
-            frame->LoadURL(new_url);
-            std::fprintf(stderr, "[vivid-cef] Loading: %s\n", new_url.c_str());
+            frame->LoadURL(resolved);
+            std::fprintf(stderr, "[vivid-cef] Loading: %s\n", resolved.c_str());
         }
     } else {
-        client_->set_pending_url(new_url);
+        client_->set_pending_url(resolved);
     }
 }
 

@@ -31,6 +31,9 @@ public:
 
     void OnBeforeCommandLineProcessing(const CefString& /*process_type*/,
                                        CefRefPtr<CefCommandLine> cmd) override {
+        // Run everything in-process: avoids Mach port rendezvous failures
+        // when CEF is loaded as a plugin via dlopen in a host app.
+        cmd->AppendSwitch("single-process");
         cmd->AppendSwitch("disable-gpu");
         cmd->AppendSwitch("disable-gpu-compositing");
         cmd->AppendSwitch("use-mock-keychain");
