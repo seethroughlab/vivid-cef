@@ -4,6 +4,11 @@ CEF (Chromium Embedded Framework) browser operator for [Vivid](https://github.co
 
 Renders HTML/CSS/JavaScript/WebGL content as GPU textures. Use it for dashboards, data visualizations, WebGL effects, HTML overlays, and more.
 
+## Preview
+
+![vivid-cef preview](docs/images/preview.png)
+
+
 ## Installation
 
 In Vivid's package browser, search for `vivid-cef` and click Install. Or from the CLI:
