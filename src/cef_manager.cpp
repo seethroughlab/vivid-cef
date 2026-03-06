@@ -34,7 +34,8 @@ public:
         // Run everything in-process: avoids Mach port rendezvous failures
         // when CEF is loaded as a plugin via dlopen in a host app.
         cmd->AppendSwitch("single-process");
-        cmd->AppendSwitch("disable-gpu");
+        // Keep compositing in software — pixels flow through OnPaint (CPU).
+        // GPU is enabled so WebGL/Canvas work via ANGLE internally.
         cmd->AppendSwitch("disable-gpu-compositing");
         cmd->AppendSwitch("use-mock-keychain");
         cmd->AppendSwitch("disable-extensions");

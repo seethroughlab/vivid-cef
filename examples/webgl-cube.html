@@ -11,6 +11,11 @@
 <script>
     const canvas = document.getElementById('c');
     const gl = canvas.getContext('webgl2');
+    if (!gl) {
+        document.body.innerHTML = '<p style="color:white;font:24px sans-serif;margin:40px">'
+            + 'WebGL 2 not available</p>';
+        throw new Error('WebGL 2 context creation failed');
+    }
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 

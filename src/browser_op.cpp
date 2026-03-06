@@ -115,6 +115,18 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4f {
 // =============================================================================
 
 BrowserOp::BrowserOp() {
+    vivid::semantic_tag(url, "path_video");
+    vivid::semantic_shape(url, "path");
+    vivid::semantic_intent(url, "web_url_or_file");
+
+    vivid::semantic_tag(zoom, "scale_xy");
+    vivid::semantic_shape(zoom, "scalar");
+    vivid::semantic_intent(zoom, "view_zoom");
+
+    vivid::semantic_tag(frame_rate, "frequency_hz");
+    vivid::semantic_shape(frame_rate, "int");
+    vivid::semantic_unit(frame_rate, "Hz");
+
     // Note: CefManager::acquire() is NOT called here.
     // The constructor runs during descriptor probing (VIVID_REGISTER macro),
     // where the dylib is loaded, probed, and immediately dlclose'd.
