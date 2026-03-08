@@ -24,13 +24,30 @@ vivid packages install https://github.com/seethroughlab/vivid-cef
 | Parameter   | Type  | Default | Range      | Description                            |
 |-------------|-------|---------|------------|----------------------------------------|
 | url         | File  |         |            | URL or local HTML file path            |
+| stream_id   | Text  |         |            | Shared ID for BrowserAudioIn pairing   |
 | zoom        | Float | 1.0     | 0.25 – 4.0 | Browser zoom level                    |
 | transparent | Bool  | false   |            | Transparent background (for overlays)  |
+| audio_capture | Bool | true   |            | Enable CEF audio capture for stream_id |
 | frame_rate  | Int   | 60      | 1 – 120    | CEF rendering frame rate               |
 
 ### Output
 
 - **texture** (GPU_TEXTURE) — rendered web content as a GPU texture
+
+## BrowserAudioIn Operator
+
+| Parameter        | Type  | Default | Range       | Description                                 |
+|------------------|-------|---------|-------------|---------------------------------------------|
+| stream_id        | Text  |         |             | Must match Browser stream_id                |
+| gain             | Float | 1.0     | 0.0 – 2.0   | Output gain                                 |
+| sync_strength    | Float | 1.0     | 0.0 – 1.0   | Drift correction aggressiveness             |
+| max_drift_ms     | Float | 80.0    | 5.0 – 500.0 | Max drift window before skip/dup correction |
+| dropout_behavior | Enum  | Silence |             | Underrun policy (v1: Silence)               |
+
+### Output
+
+- **left** (AUDIO_FLOAT) — left channel
+- **right** (AUDIO_FLOAT) — right channel
 
 ## Examples
 
@@ -42,11 +59,15 @@ HTML pages:
 - `examples/dashboard.html` — animated data dashboard
 - `examples/transparent-overlay.html` — transparent overlay with live clock
 - `examples/interactive.html` — mouse/keyboard interaction test (cursor tracking, click dots, scroll resize, key display)
+- `examples/audio-tone.html` — WebAudio oscillator page for BrowserAudioIn testing
+- `examples/audio-element.html` — HTMLAudioElement (`<audio>`) playback test page
 
 Graphs:
 
 - `graphs/browser_hello.json` — loads `hello.html` into a Browser operator and pipes to video output
 - `graphs/browser_webgl.json` — loads `webgl-cube.html` (demonstrates the WebGL limitation)
+- `graphs/browser_audio.json` — Browser + BrowserAudioIn routed to video_out + audio_out
+- `graphs/browser_audio_element.json` — Browser + BrowserAudioIn using HTMLAudioElement source
 
 ### Graph Format
 
@@ -94,7 +115,8 @@ CEF cannot be initialized, shut down, and re-initialized in the same process. Vi
 
 - **CPU pixel path** — CEF's OnAcceleratedPaint with shared textures is not available on macOS. Pixel upload is ~0.5-1ms for 720p on Apple Silicon.
 - **No WebGL/WebGPU** — GPU is disabled in single-process mode, so GPU-accelerated web content won't render.
+- **Single consumer per stream_id** — only one BrowserAudioIn can claim a stream ID at a time.
 
 ## Roadmap
 
-- Audio output from the browser (route CEF audio to a Vivid audio output port)
+- Rich browser audio diagnostics (buffer depth + drift telemetry ports)

@@ -1,0 +1,30 @@
+{
+  "nodes": {
+    "browser1": {
+      "type": "Browser",
+      "params": {
+        "url": "../examples/audio-tone.html",
+        "stream_id": "main",
+        "audio_capture": 1,
+        "frame_rate": 60
+      }
+    },
+    "baudio": {
+      "type": "BrowserAudioIn",
+      "params": {
+        "stream_id": "main",
+        "gain": 1.0,
+        "sync_strength": 1.0,
+        "max_drift_ms": 80.0,
+        "dropout_behavior": 0
+      }
+    },
+    "vout": { "type": "video_out", "params": {} },
+    "aout": { "type": "audio_out", "params": {} }
+  },
+  "connections": [
+    { "from": "browser1/texture", "to": "vout/input" },
+    { "from": "baudio/left", "to": "aout/left" },
+    { "from": "baudio/right", "to": "aout/right" }
+  ]
+}

@@ -1,0 +1,93 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Browser Audio Tone</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: sans-serif;
+      background: #0f1117;
+      color: #d7dde8;
+      display: grid;
+      place-items: center;
+      height: 100vh;
+    }
+    .card {
+      width: min(520px, 90vw);
+      padding: 20px;
+      border-radius: 12px;
+      background: #1a2030;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+    }
+    .row { display: flex; gap: 12px; align-items: center; margin: 10px 0; }
+    .label { width: 80px; color: #8ea3c2; font-size: 13px; }
+    input[type="range"] { flex: 1; }
+    #dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 999px;
+      background: #57e389;
+      transition: transform 80ms linear, opacity 80ms linear;
+      transform: scale(1);
+      opacity: 0.5;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>vivid-cef browser audio test</h2>
+    <div class="row"><div class="label">Beat</div><div id="dot"></div></div>
+    <div class="row"><div class="label">Freq</div><input id="freq" type="range" min="110" max="1320" value="440" /></div>
+    <div class="row"><div class="label">Gain</div><input id="gain" type="range" min="0" max="1" step="0.01" value="0.15" /></div>
+  </div>
+
+  <script>
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const lfo = ctx.createOscillator();
+    const lfoGain = ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.value = 440;
+    gain.gain.value = 0.15;
+
+    lfo.type = 'square';
+    lfo.frequency.value = 2.0;
+    lfoGain.gain.value = 0.5;
+
+    lfo.connect(lfoGain);
+    lfoGain.connect(gain.gain);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start();
+    lfo.start();
+
+    // autoplay-policy switch should allow this without gesture in CEF.
+    ctx.resume().catch(() => {});
+
+    const freq = document.getElementById('freq');
+    const gainSlider = document.getElementById('gain');
+    const dot = document.getElementById('dot');
+
+    freq.addEventListener('input', () => {
+      osc.frequency.setTargetAtTime(Number(freq.value), ctx.currentTime, 0.01);
+    });
+
+    gainSlider.addEventListener('input', () => {
+      gain.gain.setTargetAtTime(Number(gainSlider.value), ctx.currentTime, 0.01);
+    });
+
+    setInterval(() => {
+      const t = performance.now() * 0.002;
+      const on = Math.sin(t * Math.PI * 2) > 0;
+      dot.style.opacity = on ? '1' : '0.35';
+      dot.style.transform = on ? 'scale(1.3)' : 'scale(1)';
+    }, 60);
+  </script>
+</body>
+</html>

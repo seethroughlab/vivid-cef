@@ -1,0 +1,119 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Browser Audio Element Test</title>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: radial-gradient(circle at 20% 20%, #16243a 0%, #0b111d 60%, #070b14 100%);
+      color: #d7e4ff;
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .card {
+      width: min(560px, 92vw);
+      border-radius: 14px;
+      padding: 18px;
+      background: rgba(21, 30, 49, 0.85);
+      border: 1px solid rgba(153, 189, 255, 0.25);
+      box-shadow: 0 14px 40px rgba(0, 0, 0, 0.38);
+    }
+    .meta { color: #9fb7de; font-size: 13px; }
+    .row { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+    .label { width: 110px; color: #aac2e8; font-size: 13px; }
+    input[type="range"] { flex: 1; }
+    #pulse {
+      width: 14px;
+      height: 14px;
+      border-radius: 999px;
+      background: #66f3ad;
+      opacity: 0.35;
+      transform: scale(1);
+      transition: transform 70ms linear, opacity 70ms linear;
+    }
+    audio {
+      width: 100%;
+      margin-top: 12px;
+      filter: hue-rotate(160deg) saturate(0.85);
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>vivid-cef HTMLAudioElement test</h2>
+    <div class="meta">This uses a real &lt;audio&gt; tag with generated PCM WAV and loops continuously.</div>
+    <audio id="player" controls loop autoplay playsinline></audio>
+    <div class="row"><div class="label">Pulse</div><div id="pulse"></div></div>
+    <div class="row"><div class="label">Volume</div><input id="vol" type="range" min="0" max="1" step="0.01" value="0.3" /></div>
+  </div>
+
+  <script>
+    function createToneWavBlob(sampleRate, seconds) {
+      const frames = Math.floor(sampleRate * seconds);
+      const channels = 2;
+      const bytesPerSample = 2;
+      const blockAlign = channels * bytesPerSample;
+      const dataBytes = frames * blockAlign;
+      const buffer = new ArrayBuffer(44 + dataBytes);
+      const view = new DataView(buffer);
+
+      function writeStr(off, s) {
+        for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i));
+      }
+
+      writeStr(0, 'RIFF');
+      view.setUint32(4, 36 + dataBytes, true);
+      writeStr(8, 'WAVE');
+      writeStr(12, 'fmt ');
+      view.setUint32(16, 16, true);         // PCM fmt chunk size
+      view.setUint16(20, 1, true);          // PCM
+      view.setUint16(22, channels, true);
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * blockAlign, true);
+      view.setUint16(32, blockAlign, true);
+      view.setUint16(34, 16, true);
+      writeStr(36, 'data');
+      view.setUint32(40, dataBytes, true);
+
+      let p = 44;
+      for (let i = 0; i < frames; i++) {
+        const t = i / sampleRate;
+        // Layered tone + slow tremolo for easy verification.
+        const base = Math.sin(2 * Math.PI * 220 * t) * 0.45;
+        const overtone = Math.sin(2 * Math.PI * 330 * t) * 0.2;
+        const trem = 0.55 + 0.45 * Math.sin(2 * Math.PI * 2.0 * t);
+        const s = Math.max(-1, Math.min(1, (base + overtone) * trem));
+        const v = Math.round(s * 32767);
+        view.setInt16(p, v, true); p += 2; // L
+        view.setInt16(p, v, true); p += 2; // R
+      }
+
+      return new Blob([buffer], { type: 'audio/wav' });
+    }
+
+    const audio = document.getElementById('player');
+    const blob = createToneWavBlob(48000, 2.0);
+    const url = URL.createObjectURL(blob);
+    audio.src = url;
+    audio.volume = 0.3;
+
+    audio.play().catch(() => {});
+
+    const vol = document.getElementById('vol');
+    vol.addEventListener('input', () => {
+      audio.volume = Number(vol.value);
+    });
+
+    const pulse = document.getElementById('pulse');
+    setInterval(() => {
+      const now = performance.now() * 0.002;
+      const on = Math.sin(now * Math.PI * 2) > 0;
+      pulse.style.opacity = on ? '1' : '0.35';
+      pulse.style.transform = on ? 'scale(1.35)' : 'scale(1)';
+    }, 60);
+  </script>
+</body>
+</html>
