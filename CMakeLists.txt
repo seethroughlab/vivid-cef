@@ -246,6 +246,16 @@ add_executable(vivid-cef-helper subprocess/main.cpp)
 target_link_libraries(vivid-cef-helper PRIVATE cef_dll_wrapper cef)
 target_include_directories(vivid-cef-helper PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
+if(APPLE)
+    # Embed Info.plist so CFBundleGetMainBundle() returns com.vivid.app bundle ID.
+    # Without this the subprocess has no bundle identity and looks up the Mach port
+    # rendezvous server with an empty bundle-ID prefix, which doesn't match what the
+    # parent (vivid.app, bundle ID com.vivid.app) registers.
+    target_link_options(vivid-cef-helper PRIVATE
+        -sectcreate __TEXT __info_plist "${CMAKE_CURRENT_SOURCE_DIR}/subprocess/Info.plist"
+    )
+endif()
+
 set_target_properties(vivid-cef-helper PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
 )
