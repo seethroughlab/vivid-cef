@@ -1,0 +1,41 @@
+{
+  "meta": {
+    "id": "browser_3d_cube",
+    "title": "Browser on 3D Cube",
+    "description": "Browser texture mapped as the surface of a rotating 3D cube.",
+    "tags": ["browser", "3d", "texture", "demo"],
+    "difficulty": "intermediate",
+    "domains": ["gpu"],
+    "requires_packages": ["vivid-cef", "vivid-3d"],
+    "featured_rank": 0
+  },
+  "nodes": {
+    "browser1": {
+      "type": "Browser",
+      "params": { "url": "https://example.com", "frame_rate": 30 }
+    },
+    "shape1":  { "type": "Shape3D",    "params": { "shape": 0 } },
+    "mat1":    { "type": "Material3D", "params": { "unlit": 1.0 } },
+    "light1":  { "type": "Light3D",    "params": { "type": 0, "intensity": 1.5 } },
+    "lfo1":    { "type": "LFO",        "params": { "frequency": 0.12, "amplitude": 6.283, "offset": 0.0 } },
+    "merge1":  { "type": "SceneMerge" },
+    "cam1":    { "type": "OrbitCamera","params": { "distance": 4.0, "elevation": 15 } },
+    "render1": { "type": "Render3D" },
+    "vout":    { "type": "video_out" }
+  },
+  "connections": [
+    { "from": "browser1/texture", "to": "mat1/albedo_map" },
+    { "from": "shape1/scene",     "to": "mat1/scene" },
+    { "from": "mat1/scene",       "to": "merge1/scene_a" },
+    { "from": "light1/scene",     "to": "merge1/scene_b" },
+    { "from": "merge1/scene",     "to": "render1/scene" },
+    { "from": "lfo1/value",       "to": "shape1/rot_y" },
+    { "from": "cam1/cam_x",       "to": "render1/cam_x" },
+    { "from": "cam1/cam_y",       "to": "render1/cam_y" },
+    { "from": "cam1/cam_z",       "to": "render1/cam_z" },
+    { "from": "cam1/target_x",    "to": "render1/target_x" },
+    { "from": "cam1/target_y",    "to": "render1/target_y" },
+    { "from": "cam1/target_z",    "to": "render1/target_z" },
+    { "from": "render1/texture",  "to": "vout/input" }
+  ]
+}
