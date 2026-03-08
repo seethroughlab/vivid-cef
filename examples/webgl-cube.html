@@ -18,6 +18,7 @@
     }
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
+    console.log('canvas size:', canvas.width, 'x', canvas.height);
 
     const vs = `#version 300 es
     in vec3 aPos;
@@ -45,9 +46,16 @@
     }
 
     const prog = gl.createProgram();
-    gl.attachShader(prog, createShader(gl.VERTEX_SHADER, vs));
-    gl.attachShader(prog, createShader(gl.FRAGMENT_SHADER, fs));
+    const vShader = createShader(gl.VERTEX_SHADER, vs);
+    const fShader = createShader(gl.FRAGMENT_SHADER, fs);
+    gl.attachShader(prog, vShader);
+    gl.attachShader(prog, fShader);
     gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+        console.error('Link error:', gl.getProgramInfoLog(prog));
+        console.error('VS log:', gl.getShaderInfoLog(vShader));
+        console.error('FS log:', gl.getShaderInfoLog(fShader));
+    }
     gl.useProgram(prog);
 
     // Cube vertices with colors
@@ -76,6 +84,7 @@
     gl.vertexAttribPointer(aCol, 3, gl.FLOAT, false, 24, 12);
 
     const uMVP = gl.getUniformLocation(prog, 'uMVP');
+    console.log('aPos:', aPos, 'aCol:', aCol, 'uMVP:', uMVP);
 
     gl.enable(gl.DEPTH_TEST);
     gl.viewport(0, 0, canvas.width, canvas.height);
@@ -118,11 +127,15 @@
 
         const proj = mat4Perspective(1.0, canvas.width/canvas.height, 0.1, 100);
         const view = mat4Translate(0, 0, -5);
-        const model = mat4Mul(mat4RotateY(t), mat4RotateX(t * 0.7));
-        const mvp = mat4Mul(proj, mat4Mul(view, model));
+        // mat4Mul(a,b) computes b*a, so to get proj*view*model:
+        // mat4Mul(mat4Mul(model,view),proj) = mat4Mul(view*model,proj) = proj*(view*model) ✓
+        const model = mat4Mul(mat4RotateX(t * 0.7), mat4RotateY(t));
+        const mvp = mat4Mul(mat4Mul(model, view), proj);
         gl.uniformMatrix4fv(uMVP, false, mvp);
 
         gl.drawElements(gl.TRIANGLES, 36, gl.UNSIGNED_SHORT, 0);
+        const err = gl.getError();
+        if (err !== gl.NO_ERROR) console.error('WebGL error after draw:', err);
         requestAnimationFrame(render);
     }
     requestAnimationFrame(render);
