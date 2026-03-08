@@ -12,6 +12,7 @@ project(vivid-cef)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+enable_testing()
 
 if(NOT VIVID_SRC_DIR)
     message(FATAL_ERROR "VIVID_SRC_DIR not set — this package must be built via vivid's PackageManager")
@@ -229,6 +230,10 @@ set_target_properties(browser_audio_bridge PROPERTIES
 
 add_library(browser MODULE
     src/browser_op.cpp
+    src/browser_cef_gate.cpp
+    src/browser_gpu_helper.cpp
+    src/browser_input_dispatch.cpp
+    src/browser_url_utils.cpp
     src/cef_manager.cpp
     src/cef_client.cpp
 )
@@ -352,3 +357,25 @@ else()
 endif()
 
 message(STATUS "[vivid-cef] CEF ${CEF_VERSION} configured for ${CEF_PLATFORM}")
+
+# =============================================================================
+# Tests
+# =============================================================================
+
+add_executable(test_browser_cef_gate
+    tests/test_browser_cef_gate.cpp
+    src/browser_cef_gate.cpp
+)
+target_include_directories(test_browser_cef_gate PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+add_test(NAME vivid_cef_test_browser_cef_gate COMMAND test_browser_cef_gate)
+
+add_executable(test_browser_audio_bridge
+    tests/test_browser_audio_bridge.cpp
+    src/browser_audio_bridge.cpp
+)
+target_include_directories(test_browser_audio_bridge PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+add_test(NAME vivid_cef_test_browser_audio_bridge COMMAND test_browser_audio_bridge)

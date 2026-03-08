@@ -10,6 +10,8 @@
 #include "operator_api/operator.h"
 #include "operator_api/gpu_operator.h"
 
+#include "browser_cef_gate.h"
+#include "browser_gpu_helper.h"
 #include "cef_client.h"
 
 #include <include/cef_browser.h>
@@ -45,6 +47,11 @@ struct BrowserOp : vivid::OperatorBase {
 
     void process(const VividProcessContext* ctx) override;
     void main_thread_update(double time) override;
+    static void set_test_acquire_hook(bool (*hook)());
+    static void set_test_disable_browser_create(bool disable);
+    static void set_test_skip_gpu_init(bool skip);
+    static int test_create_browser_attempts();
+    static void reset_test_state();
 
     BrowserOp();
     ~BrowserOp() override;
@@ -60,28 +67,12 @@ private:
     bool                          last_audio_capture_ = true;
     int                           last_frame_rate_ = 60;
     float                         last_zoom_ = 1.0f;
-
-    // GPU resources (same pattern as MovieFileIn)
-    WGPURenderPipeline  pipeline_     = nullptr;
-    WGPUBindGroupLayout bind_layout_  = nullptr;
-    WGPUPipelineLayout  pipe_layout_  = nullptr;
-    WGPUShaderModule    shader_       = nullptr;
-    WGPUSampler         sampler_      = nullptr;
-    WGPUTexture         staging_tex_  = nullptr;
-    WGPUTextureView     staging_view_ = nullptr;
-    WGPUBindGroup       bind_group_   = nullptr;
-    uint32_t            staging_w_    = 0;
-    uint32_t            staging_h_    = 0;
+    BrowserCefGate                cef_gate_;
+    BrowserGpuHelper              gpu_helper_;
 
     // Browser dimensions (default 1280x720, could be parameterized later)
     static constexpr int kBrowserWidth  = 1280;
     static constexpr int kBrowserHeight = 720;
-
-    bool lazy_init_gpu(VividGpuState* gpu);
-    void recreate_staging(VividGpuState* gpu, uint32_t w, uint32_t h);
-    void upload_pixels(VividGpuState* gpu, const uint8_t* pixels, uint32_t w, uint32_t h);
-    void blit(VividGpuState* gpu);
-    void clear_output(VividGpuState* gpu);
 
     void create_browser();
     void update_url(const std::string& new_url);

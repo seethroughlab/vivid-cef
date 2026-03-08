@@ -30,11 +30,28 @@ jobs:
       - name: Build test_demo_graphs and vivid core operators
         run: cmake --build ${{ github.workspace }}/../vivid/build --target test_demo_graphs operators -j$(sysctl -n hw.logicalcpu)
 
+      - name: Clone vivid-3d
+        run: |
+          rm -rf ${{ github.workspace }}/../vivid-3d
+          git clone --recurse-submodules https://github.com/seethroughlab/vivid-3d.git ${{ github.workspace }}/../vivid-3d
+
+      - name: Configure vivid-3d
+        run: cmake -B ${{ github.workspace }}/../vivid-3d/build -S ${{ github.workspace }}/../vivid-3d -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_OSX_ARCHITECTURES=arm64 -DVIVID_SRC_DIR=${{ github.workspace }}/../vivid -DVIVID_BUILD_DIR=${{ github.workspace }}/../vivid/build
+
+      - name: Build vivid-3d operators
+        run: cmake --build ${{ github.workspace }}/../vivid-3d/build --target operators -j$(sysctl -n hw.logicalcpu)
+
+      - name: Copy vivid-3d operators to vivid build dir
+        run: cp ${{ github.workspace }}/../vivid-3d/build/*.dylib ${{ github.workspace }}/../vivid/build/
+
       - name: Configure package (downloads CEF)
         run: cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_OSX_ARCHITECTURES=arm64 -DVIVID_SRC_DIR=${{ github.workspace }}/../vivid -DVIVID_BUILD_DIR=${{ github.workspace }}/../vivid/build
 
-      - name: Build operators and helper
-        run: cmake --build build --target browser vivid-cef-helper -j$(sysctl -n hw.logicalcpu)
+      - name: Build operators, helper, and deterministic tests
+        run: cmake --build build --target browser browser_audio_in vivid-cef-helper test_browser_cef_gate test_browser_audio_bridge -j$(sysctl -n hw.logicalcpu)
+
+      - name: Run vivid-cef deterministic tests
+        run: cd build && ctest --output-on-failure -R vivid_cef_test_
 
       - name: Copy plugin, helper, and CEF framework to vivid build dir
         run: |

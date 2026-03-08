@@ -81,6 +81,14 @@ String params (like `url`) go inside the `"params"` object alongside numeric par
 
 CEF lifecycle is reference-counted for acquisition: the first Browser operator initializes CEF, and subsequent operators share the same CEF process. In plugin mode, CEF is kept initialized for the host process lifetime (it is not torn down/reinitialized between operator instances).
 
+### CEF Acquire Failure + Retry
+
+`BrowserOp` now treats `CefManager::acquire()` as authoritative:
+
+- If acquire fails in `process()`, the operator logs once, outputs a deterministic clear frame, and skips browser creation/CEF calls for that frame.
+- The operator retries acquire on subsequent frames (no permanent lockout).
+- On later success, normal browser creation/rendering resumes.
+
 ### Input Forwarding
 
 When the Vivid UI is hidden (tilde key), mouse and keyboard events are forwarded to Browser operators via the `VividInputState` API. Events are translated from GLFW to CEF format:
@@ -94,6 +102,36 @@ When the Vivid UI is hidden (tilde key), mouse and keyboard events are forwarded
 - CMake 3.16+
 - macOS (arm64/x86_64), Windows, or Linux
 - Internet connection for first build (downloads CEF from Spotify CDN)
+
+## Testing
+
+### Local deterministic tests
+
+Configure/build:
+
+```bash
+cmake -B build -S . \
+  -DVIVID_SRC_DIR=/path/to/vivid \
+  -DVIVID_BUILD_DIR=/path/to/vivid/build
+cmake --build build --target test_browser_cef_gate test_browser_audio_bridge
+```
+
+Run:
+
+```bash
+ctest --test-dir build --output-on-failure -R vivid_cef_test_
+```
+
+Current deterministic coverage:
+
+- `vivid_cef_test_browser_cef_gate` — acquire failure/retry contract
+- `vivid_cef_test_browser_audio_bridge` — stream claim/release + silence/no-stale-audio behavior
+
+### Smoke workflow parity
+
+The CI smoke workflow builds and runs the deterministic `vivid_cef_test_*` tests before demo-graph smoke checks:
+
+- [`.github/workflows/smoke.yml`](/Users/jeff/Developer/vivid-cef/.github/workflows/smoke.yml)
 
 ## Known Issues
 
