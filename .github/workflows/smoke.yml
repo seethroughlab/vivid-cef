@@ -41,6 +41,10 @@ jobs:
           cp build/*.dylib ${{ github.workspace }}/../vivid/build/
           cp build/vivid-cef-helper ${{ github.workspace }}/../vivid/build/
           cp -r "build/Chromium Embedded Framework.framework" ${{ github.workspace }}/../vivid/build/
+          # CEF looks for ANGLE/SwiftShader dylibs next to the executable when no
+          # GPU is available (e.g. headless CI). Copy them out of the framework.
+          cp "build/Chromium Embedded Framework.framework/Libraries/"*.dylib ${{ github.workspace }}/../vivid/build/ || true
+          cp "build/Chromium Embedded Framework.framework/Libraries/vk_swiftshader_icd.json" ${{ github.workspace }}/../vivid/build/ || true
 
       - name: Run smoke tests
         run: cd ${{ github.workspace }}/../vivid/build && ./test_demo_graphs ${{ github.workspace }}/graphs
