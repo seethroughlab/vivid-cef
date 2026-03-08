@@ -30,18 +30,14 @@ jobs:
       - name: Build test_demo_graphs and vivid core operators
         run: cmake --build ${{ github.workspace }}/../vivid/build --target test_demo_graphs operators -j$(sysctl -n hw.logicalcpu)
 
-      - name: Normalize vivid _deps wgpu path for vivid-3d (arm64)
+      - name: Normalize vivid _deps wgpu runtime dylib for vivid-3d (arm64)
         run: |
           DEPS_DIR="${{ github.workspace }}/../vivid/build/_deps"
-          ARM_DIR=""
-          if [ -d "$DEPS_DIR/wgpu-macos-aarch64-release-src" ]; then
-            ARM_DIR="$DEPS_DIR/wgpu-macos-aarch64-release-src"
-          elif [ -d "$DEPS_DIR/wgpu-macos-arm64-release-src" ]; then
-            ARM_DIR="$DEPS_DIR/wgpu-macos-arm64-release-src"
-          fi
-          if [ -n "$ARM_DIR" ]; then
-            rm -rf "$DEPS_DIR/wgpu-macos-x86_64-release-src"
-            ln -s "$ARM_DIR" "$DEPS_DIR/wgpu-macos-x86_64-release-src"
+          RUNTIME_LIB="$DEPS_DIR/wgpu-macos-x86_64-release-src/lib/libwgpu_native.dylib"
+          RUST_LIB="$DEPS_DIR/wgpu_native_fork-src/target/release/libwgpu_native.dylib"
+          if [ -f "$RUST_LIB" ] && [ -f "$RUNTIME_LIB" ]; then
+            cp "$RUST_LIB" "$RUNTIME_LIB"
+            lipo -info "$RUNTIME_LIB"
           fi
 
       - name: Clone vivid-3d
