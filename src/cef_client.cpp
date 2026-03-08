@@ -46,6 +46,9 @@ VividCefClient::VividCefClient(CefRefPtr<VividRenderHandler> handler)
 void VividCefClient::OnAfterCreated(CefRefPtr<CefBrowser> browser) {
     browser_ = browser;
 
+    // Tell CEF the page is visible so rAF isn't throttled in offscreen mode
+    browser->GetHost()->WasHidden(false);
+
     if (!pending_url_.empty()) {
         auto frame = browser->GetMainFrame();
         if (frame)
@@ -67,6 +70,16 @@ void VividCefClient::OnLoadEnd(CefRefPtr<CefBrowser> /*browser*/,
                                 int /*httpStatusCode*/) {
     if (frame->IsMain())
         loading_.store(false);
+}
+
+bool VividCefClient::OnConsoleMessage(CefRefPtr<CefBrowser> /*browser*/,
+                                       cef_log_severity_t level,
+                                       const CefString& message,
+                                       const CefString& source,
+                                       int line) {
+    std::fprintf(stderr, "[vivid-cef] console[%d] %s:%d: %s\n",
+                 level, source.ToString().c_str(), line, message.ToString().c_str());
+    return false;  // don't suppress
 }
 
 void VividCefClient::OnLoadError(CefRefPtr<CefBrowser> /*browser*/,

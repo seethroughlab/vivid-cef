@@ -10,6 +10,7 @@
 #include <include/cef_render_handler.h>
 #include <include/cef_life_span_handler.h>
 #include <include/cef_load_handler.h>
+#include <include/cef_display_handler.h>
 
 #include <atomic>
 #include <cstdint>
@@ -60,14 +61,16 @@ private:
 
 class VividCefClient : public CefClient,
                        public CefLifeSpanHandler,
-                       public CefLoadHandler {
+                       public CefLoadHandler,
+                       public CefDisplayHandler {
 public:
     explicit VividCefClient(CefRefPtr<VividRenderHandler> handler);
 
     // CefClient
-    CefRefPtr<CefRenderHandler>  GetRenderHandler() override   { return handler_; }
+    CefRefPtr<CefRenderHandler>   GetRenderHandler() override   { return handler_; }
     CefRefPtr<CefLifeSpanHandler> GetLifeSpanHandler() override { return this; }
-    CefRefPtr<CefLoadHandler>    GetLoadHandler() override     { return this; }
+    CefRefPtr<CefLoadHandler>     GetLoadHandler() override     { return this; }
+    CefRefPtr<CefDisplayHandler>  GetDisplayHandler() override  { return this; }
 
     // CefLifeSpanHandler
     void OnAfterCreated(CefRefPtr<CefBrowser> browser) override;
@@ -80,6 +83,11 @@ public:
     void OnLoadError(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
                      ErrorCode errorCode, const CefString& errorText,
                      const CefString& failedUrl) override;
+
+    // CefDisplayHandler — forward console messages to stderr for debugging
+    bool OnConsoleMessage(CefRefPtr<CefBrowser> browser, cef_log_severity_t level,
+                          const CefString& message, const CefString& source,
+                          int line) override;
 
     // Accessors
     CefRefPtr<CefBrowser> browser() const { return browser_; }
