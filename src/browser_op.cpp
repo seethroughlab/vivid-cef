@@ -10,6 +10,14 @@
 #include <filesystem>
 #include <vector>
 
+#if defined(__APPLE__) || defined(__linux__)
+#include <dlfcn.h>
+#elif defined(_WIN32)
+#include <windows.h>
+#endif
+
+extern "C" const VividOperatorDescriptor* vivid_descriptor();
+
 // =============================================================================
 // GLFW → CEF input translation helpers
 // =============================================================================
@@ -82,6 +90,57 @@ static int glfw_to_cef_keycode(int glfw_key) {
     }
 }
 
+static std::string plugin_dir_for_fallback() {
+#if defined(__APPLE__) || defined(__linux__)
+    Dl_info info;
+    if (dladdr(reinterpret_cast<const void*>(&vivid_descriptor), &info) && info.dli_fname) {
+        std::filesystem::path p(info.dli_fname);
+        return p.parent_path().string();
+    }
+#elif defined(_WIN32)
+    HMODULE hm = nullptr;
+    if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                           GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                           reinterpret_cast<LPCSTR>(&vivid_descriptor), &hm)) {
+        char buf[MAX_PATH];
+        DWORD n = GetModuleFileNameA(hm, buf, MAX_PATH);
+        if (n > 0 && n < MAX_PATH) {
+            std::filesystem::path p(buf);
+            return p.parent_path().string();
+        }
+    }
+#endif
+    return std::filesystem::current_path().string();
+}
+
+static std::filesystem::path resolve_relative_file_path(const std::string& rel,
+                                                        const std::string& graph_base_dir) {
+    std::vector<std::filesystem::path> candidates;
+
+    if (!graph_base_dir.empty()) {
+        std::filesystem::path gb(graph_base_dir);
+        if (gb.is_absolute()) candidates.push_back(gb);
+    }
+
+    const std::filesystem::path plugin_dir = plugin_dir_for_fallback();
+    candidates.push_back(plugin_dir);
+    candidates.push_back(plugin_dir / "..");  // package root when dylib is in build/
+    candidates.push_back(std::filesystem::current_path());
+
+    for (const auto& base_raw : candidates) {
+        std::error_code ec;
+        std::filesystem::path base = std::filesystem::weakly_canonical(base_raw, ec);
+        if (ec) base = base_raw.lexically_normal();
+        std::filesystem::path candidate = (base / rel).lexically_normal();
+        if (std::filesystem::exists(candidate)) {
+            return candidate;
+        }
+    }
+
+    // Fallback: deterministic best guess
+    return (candidates.front() / rel).lexically_normal();
+}
+
 // =============================================================================
 // Blit WGSL — identical to MovieFileIn's blit shader
 // =============================================================================
@@ -123,6 +182,12 @@ BrowserOp::BrowserOp() {
     vivid::semantic_shape(zoom, "scalar");
     vivid::semantic_intent(zoom, "view_zoom");
 
+    vivid::semantic_tag(stream_id, "id_stream");
+    vivid::semantic_shape(stream_id, "string");
+
+    vivid::semantic_tag(audio_capture, "enabled");
+    vivid::semantic_shape(audio_capture, "bool");
+
     vivid::semantic_tag(frame_rate, "frequency_hz");
     vivid::semantic_shape(frame_rate, "int");
     vivid::semantic_unit(frame_rate, "Hz");
@@ -137,6 +202,8 @@ BrowserOp::BrowserOp() {
 BrowserOp::~BrowserOp() {
     // Close browser before releasing GPU resources
     if (client_ && client_->browser()) {
+        client_->set_audio_capture(false);
+        client_->set_audio_stream_id("");
         client_->browser()->GetHost()->CloseBrowser(true);
     }
     client_     = nullptr;
@@ -163,7 +230,7 @@ BrowserOp::~BrowserOp() {
 
 void BrowserOp::create_browser() {
     render_handler_ = new VividRenderHandler(kBrowserWidth, kBrowserHeight);
-    client_         = new VividCefClient(render_handler_);
+    client_         = new VividCefClient(render_handler_, stream_id.str_value, audio_capture.bool_value());
 
     CefBrowserSettings browser_settings;
     browser_settings.windowless_frame_rate = frame_rate.int_value();
@@ -194,14 +261,16 @@ void BrowserOp::update_url(const std::string& new_url) {
     if (new_url.empty()) return;
 
     std::string resolved = new_url;
-    if (resolved.find("://") == std::string::npos) {
+    if (resolved.rfind("file://", 0) == 0) {
+        std::string file_path = resolved.substr(7);
+        if (!file_path.empty() && file_path[0] != '/') {
+            file_path = resolve_relative_file_path(file_path, graph_base_dir_).string();
+            resolved = "file://" + file_path;
+        }
+    } else if (resolved.find("://") == std::string::npos) {
         // Not a URL — treat as file path
         if (!resolved.empty() && resolved[0] != '/') {
-            // Relative path — resolve against graph directory
-            if (!graph_base_dir_.empty()) {
-                resolved = (std::filesystem::path(graph_base_dir_) / resolved)
-                               .lexically_normal().string();
-            }
+            resolved = resolve_relative_file_path(resolved, graph_base_dir_).string();
         }
         resolved = "file://" + resolved;
     }
@@ -266,6 +335,19 @@ void BrowserOp::process(const VividProcessContext* ctx) {
 
     // Check for URL changes
     update_url(url.str_value);
+
+    // Update audio route params if changed
+    if (client_) {
+        if (stream_id.str_value != last_stream_id_) {
+            last_stream_id_ = stream_id.str_value;
+            client_->set_audio_stream_id(last_stream_id_);
+        }
+        bool capture = audio_capture.bool_value();
+        if (capture != last_audio_capture_) {
+            last_audio_capture_ = capture;
+            client_->set_audio_capture(capture);
+        }
+    }
 
     // Update frame rate if changed
     if (frame_rate.int_value() != last_frame_rate_) {

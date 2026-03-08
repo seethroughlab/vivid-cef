@@ -11,9 +11,11 @@
 #include <include/cef_life_span_handler.h>
 #include <include/cef_load_handler.h>
 #include <include/cef_display_handler.h>
+#include <include/cef_audio_handler.h>
 
 #include <atomic>
 #include <cstdint>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -56,6 +58,57 @@ private:
 };
 
 // ---------------------------------------------------------------------------
+// Shared audio routing config between BrowserOp and CEF audio callbacks
+// ---------------------------------------------------------------------------
+
+struct AudioRoutingState {
+    std::atomic<bool> capture_enabled{true};
+    std::atomic<int> channels{2};
+    std::atomic<int> sample_rate{48000};
+
+    void set_stream_id(const std::string& id) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        stream_id_ = id;
+    }
+
+    std::string stream_id() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return stream_id_;
+    }
+
+private:
+    mutable std::mutex mutex_;
+    std::string stream_id_;
+};
+
+// ---------------------------------------------------------------------------
+// Audio handler — receives PCM packets from CEF
+// ---------------------------------------------------------------------------
+
+class VividAudioHandler : public CefAudioHandler {
+public:
+    explicit VividAudioHandler(std::shared_ptr<AudioRoutingState> state);
+
+    bool GetAudioParameters(CefRefPtr<CefBrowser> browser,
+                            CefAudioParameters& params) override;
+    void OnAudioStreamStarted(CefRefPtr<CefBrowser> browser,
+                              const CefAudioParameters& params,
+                              int channels) override;
+    void OnAudioStreamPacket(CefRefPtr<CefBrowser> browser,
+                             const float** data,
+                             int frames,
+                             int64_t pts) override;
+    void OnAudioStreamStopped(CefRefPtr<CefBrowser> browser) override;
+    void OnAudioStreamError(CefRefPtr<CefBrowser> browser,
+                            const CefString& message) override;
+
+private:
+    std::shared_ptr<AudioRoutingState> state_;
+
+    IMPLEMENT_REFCOUNTING(VividAudioHandler);
+};
+
+// ---------------------------------------------------------------------------
 // Client — owns render handler, manages browser lifecycle
 // ---------------------------------------------------------------------------
 
@@ -64,13 +117,16 @@ class VividCefClient : public CefClient,
                        public CefLoadHandler,
                        public CefDisplayHandler {
 public:
-    explicit VividCefClient(CefRefPtr<VividRenderHandler> handler);
+    explicit VividCefClient(CefRefPtr<VividRenderHandler> handler,
+                            const std::string& stream_id,
+                            bool audio_capture);
 
     // CefClient
     CefRefPtr<CefRenderHandler>   GetRenderHandler() override   { return handler_; }
     CefRefPtr<CefLifeSpanHandler> GetLifeSpanHandler() override { return this; }
     CefRefPtr<CefLoadHandler>     GetLoadHandler() override     { return this; }
     CefRefPtr<CefDisplayHandler>  GetDisplayHandler() override  { return this; }
+    CefRefPtr<CefAudioHandler>    GetAudioHandler() override    { return audio_handler_; }
 
     // CefLifeSpanHandler
     void OnAfterCreated(CefRefPtr<CefBrowser> browser) override;
@@ -93,9 +149,13 @@ public:
     CefRefPtr<CefBrowser> browser() const { return browser_; }
     bool   is_loading() const { return loading_.load(); }
     void   set_pending_url(const std::string& url) { pending_url_ = url; }
+    void   set_audio_stream_id(const std::string& stream_id);
+    void   set_audio_capture(bool enabled);
 
 private:
     CefRefPtr<VividRenderHandler> handler_;
+    CefRefPtr<VividAudioHandler>  audio_handler_;
+    std::shared_ptr<AudioRoutingState> audio_state_;
     CefRefPtr<CefBrowser>         browser_;
     std::atomic<bool>             loading_{false};
     std::string                   pending_url_;

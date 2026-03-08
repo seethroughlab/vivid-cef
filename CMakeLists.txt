@@ -208,6 +208,22 @@ else()
 endif()
 
 # =============================================================================
+# Shared browser-audio bridge (linked by GPU + audio operators)
+# =============================================================================
+
+add_library(browser_audio_bridge SHARED
+    src/browser_audio_bridge.cpp
+)
+
+target_include_directories(browser_audio_bridge PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+set_target_properties(browser_audio_bridge PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+
+# =============================================================================
 # browser operator plugin (MODULE library)
 # =============================================================================
 
@@ -224,8 +240,30 @@ target_include_directories(browser PRIVATE
 )
 
 target_link_libraries(browser PRIVATE cef_dll_wrapper cef)
+target_link_libraries(browser PRIVATE browser_audio_bridge)
 
 set_target_properties(browser PROPERTIES
+    PREFIX ""
+    SUFFIX "${VIVID_PLUGIN_SUFFIX}"
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+
+# =============================================================================
+# browser audio operator plugin (MODULE library)
+# =============================================================================
+
+add_library(browser_audio_in MODULE
+    src/browser_audio_in.cpp
+)
+
+target_include_directories(browser_audio_in PRIVATE
+    ${VIVID_SRC_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(browser_audio_in PRIVATE browser_audio_bridge)
+
+set_target_properties(browser_audio_in PROPERTIES
     PREFIX ""
     SUFFIX "${VIVID_PLUGIN_SUFFIX}"
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
@@ -239,6 +277,12 @@ if(APPLE)
     )
     target_link_options(browser PRIVATE -undefined dynamic_lookup)
     set_target_properties(browser PROPERTIES
+        INSTALL_RPATH "@loader_path"
+        BUILD_WITH_INSTALL_RPATH TRUE
+    )
+
+    target_link_options(browser_audio_in PRIVATE -undefined dynamic_lookup)
+    set_target_properties(browser_audio_in PROPERTIES
         INSTALL_RPATH "@loader_path"
         BUILD_WITH_INSTALL_RPATH TRUE
     )

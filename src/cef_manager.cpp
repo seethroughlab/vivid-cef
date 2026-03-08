@@ -47,6 +47,7 @@ public:
         cmd->AppendSwitch("disable-background-timer-throttling");
         cmd->AppendSwitch("disable-renderer-backgrounding");
         cmd->AppendSwitch("disable-backgrounding-occluded-windows");
+        cmd->AppendSwitchWithValue("autoplay-policy", "no-user-gesture-required");
         // Suppress Chromium's base logger stderr output. Single-process mode emits
         // expected warnings (e.g. V8 proxy resolver unavailable) that are harmless
         // but would pollute stderr. --log-level=3 allows only FATAL messages.

@@ -24,14 +24,18 @@ struct BrowserOp : vivid::OperatorBase {
 
     // Parameters
     vivid::Param<vivid::TextValue> url        {"url"};
+    vivid::Param<vivid::TextValue> stream_id  {"stream_id"};
     vivid::Param<float>           zoom       {"zoom", 1.0f, 0.25f, 4.0f};
     vivid::Param<bool>            transparent{"transparent", false};
+    vivid::Param<bool>            audio_capture{"audio_capture", true};
     vivid::Param<int>             frame_rate {"frame_rate", 60, 1, 120};
 
     void collect_params(std::vector<vivid::ParamBase*>& out) override {
         out.push_back(&url);
+        out.push_back(&stream_id);
         out.push_back(&zoom);
         out.push_back(&transparent);
+        out.push_back(&audio_capture);
         out.push_back(&frame_rate);
     }
 
@@ -52,6 +56,8 @@ private:
     CefRefPtr<VividCefClient>     client_;
     std::string                   last_url_;
     std::string                   graph_base_dir_;
+    std::string                   last_stream_id_;
+    bool                          last_audio_capture_ = true;
     int                           last_frame_rate_ = 60;
     float                         last_zoom_ = 1.0f;
 

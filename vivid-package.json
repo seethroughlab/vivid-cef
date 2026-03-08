@@ -4,6 +4,7 @@
   "description": "CEF browser operator — render HTML/CSS/JS/WebGL as GPU textures",
   "author": "Jeff",
   "build": "cmake",
+  "operators": ["browser_audio_in"],
   "gpu_operators": ["browser"],
   "dependencies": {},
   "tests": {
