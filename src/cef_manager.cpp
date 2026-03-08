@@ -129,7 +129,10 @@ bool CefManager::acquire() {
     settings.windowless_rendering_enabled = true;
     settings.external_message_pump = true;
     settings.persist_session_cookies = false;
-    settings.log_severity = LOGSEVERITY_WARNING;
+    // Redirect CEF's internal log to a file so it doesn't pollute stderr.
+    // CEF's single-process mode emits expected warnings (e.g. V8 proxy resolver
+    // unavailable) that would fail any stderr-checking smoke test.
+    settings.log_severity = LOGSEVERITY_DISABLE;
 
     // Subprocess helper
     std::string helper = helper_path();
