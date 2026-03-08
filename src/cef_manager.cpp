@@ -159,7 +159,6 @@ bool CefManager::acquire() {
     }
 
     s_initialized.store(true);
-    std::fprintf(stderr, "[vivid-cef] CEF initialized (helper: %s)\n", helper.c_str());
     return true;
 }
 
@@ -172,11 +171,8 @@ void CefManager::release() {
         return;
     }
 
-    if (prev == 1) {
-        // Keep CEF alive for process lifetime. In plugin/dlopen mode on macOS,
-        // shutting down and attempting to re-initialize later can crash.
-        std::fprintf(stderr, "[vivid-cef] Last browser released; keeping CEF initialized\n");
-    }
+    // When prev == 1: last browser released. Keep CEF alive for process lifetime.
+    // In plugin/dlopen mode on macOS, shutting down and re-initializing can crash.
 }
 
 void CefManager::pump_once(uint64_t frame) {

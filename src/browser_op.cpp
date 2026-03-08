@@ -185,8 +185,6 @@ void BrowserOp::create_browser() {
     CefBrowserHost::CreateBrowser(
         window_info, client_, "", browser_settings, nullptr, nullptr);
 
-    std::fprintf(stderr, "[vivid-cef] Browser created (%dx%d, %d fps)\n",
-                 kBrowserWidth, kBrowserHeight, frame_rate.int_value());
 }
 
 void BrowserOp::update_url(const std::string& new_url) {
@@ -210,7 +208,6 @@ void BrowserOp::update_url(const std::string& new_url) {
         auto frame = client_->browser()->GetMainFrame();
         if (frame) {
             frame->LoadURL(resolved);
-            std::fprintf(stderr, "[vivid-cef] Loading: %s\n", resolved.c_str());
         }
     } else {
         client_->set_pending_url(resolved);
