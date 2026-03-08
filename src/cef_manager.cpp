@@ -31,15 +31,22 @@ public:
 
     void OnBeforeCommandLineProcessing(const CefString& /*process_type*/,
                                        CefRefPtr<CefCommandLine> cmd) override {
-        // Run everything in-process: avoids Mach port rendezvous failures
-        // when CEF is loaded as a plugin via dlopen in a host app.
+        // CEF 120 subprocesses (GPU, renderer) fail on macOS 26 before main() runs
+        // due to binary compatibility issues. Single-process mode keeps everything
+        // in the browser process, avoiding subprocess launches entirely.
+        // Note: --in-process-gpu is redundant with --single-process.
         cmd->AppendSwitch("single-process");
-        // Keep compositing in software — pixels flow through OnPaint (CPU).
-        // GPU is enabled so WebGL/Canvas work via ANGLE internally.
-        cmd->AppendSwitch("disable-gpu-compositing");
+        // Note: do NOT add --disable-gpu-compositing here. In windowless mode,
+        // OnPaint is always used (CEF's offscreen rendering path). Adding
+        // --disable-gpu-compositing prevents the GPU compositor from presenting
+        // WebGL canvas contents to the CPU compositor, making WebGL invisible.
         cmd->AppendSwitch("use-mock-keychain");
         cmd->AppendSwitch("disable-extensions");
         cmd->AppendSwitch("disable-spell-checking");
+        // Prevent rAF throttling when the offscreen view is not visible
+        cmd->AppendSwitch("disable-background-timer-throttling");
+        cmd->AppendSwitch("disable-renderer-backgrounding");
+        cmd->AppendSwitch("disable-backgrounding-occluded-windows");
         cmd->AppendSwitchWithValue("log-severity", "warning");
     }
 
@@ -103,9 +110,15 @@ std::string CefManager::helper_path() {
 bool CefManager::acquire() {
     std::lock_guard<std::mutex> lock(g_init_mutex);
 
-    if (s_refcount.fetch_add(1) > 0) {
+    int prev = s_refcount.fetch_add(1);
+    if (prev > 0) {
         // Already initialized by another BrowserOp
         return s_initialized.load();
+    }
+
+    // CEF is already alive in this process (sticky lifetime); do not re-initialize.
+    if (s_initialized.load()) {
+        return true;
     }
 
     // First consumer — initialize CEF
@@ -154,15 +167,15 @@ void CefManager::release() {
     std::lock_guard<std::mutex> lock(g_init_mutex);
 
     int prev = s_refcount.fetch_sub(1);
-    if (prev <= 1) {
-        // Last consumer — shut down CEF
-        if (s_initialized.load()) {
-            CefShutdown();
-            g_cef_app = nullptr;
-            s_initialized.store(false);
-            s_refcount.store(0);
-            std::fprintf(stderr, "[vivid-cef] CEF shut down\n");
-        }
+    if (prev <= 0) {
+        s_refcount.store(0);
+        return;
+    }
+
+    if (prev == 1) {
+        // Keep CEF alive for process lifetime. In plugin/dlopen mode on macOS,
+        // shutting down and attempting to re-initialize later can crash.
+        std::fprintf(stderr, "[vivid-cef] Last browser released; keeping CEF initialized\n");
     }
 }
 
