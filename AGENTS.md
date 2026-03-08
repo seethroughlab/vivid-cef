@@ -62,7 +62,7 @@ tests/                  Placeholder (empty)
 
 ## Key design decisions
 
-**Single-process mode** — Mach port rendezvous IPC fails when CEF runs inside a `dlopen()`'d plugin. `--single-process` disables all subprocesses. Consequence: `--disable-gpu` is also required, so no WebGL/WebGPU in the browser.
+**Single-process + in-process-gpu mode** — CEF 120 subprocesses (GPU, renderer) fail on macOS 26 before main() runs due to binary compatibility issues. `--single-process` keeps the renderer in-process; `--in-process-gpu` keeps the GPU service in-process. `--use-angle=swiftshader` provides software WebGL 2 without a GPU subprocess. `--disable-gpu-compositing` routes pixels through `OnPaint` (CPU path).
 
 **CPU pixel path** — CEF's `OnAcceleratedPaint` with shared textures isn't available on macOS. `OnPaint()` delivers BGRA pixels; we upload them to GPU each frame. ~0.5–1ms at 720p on Apple Silicon.
 
@@ -82,7 +82,7 @@ tests/                  Placeholder (empty)
 
 ## Important pitfalls
 
-**No WebGL** — GPU is disabled (`--disable-gpu`). CSS/HTML/JS animations work fine; only GPU-accelerated web content (WebGL, WebGPU) renders blank. `examples/webgl-cube.html` demonstrates this.
+**WebGL via SwiftShader** — Hardware GPU is unavailable (CEF subprocess binary incompatibility on macOS 26). WebGL 2 works via SwiftShader (software rasterizer) using `--use-angle=swiftshader`. WebGPU in the browser is not available. Performance is software-level but functional.
 
 **CEF probe crash** — If `CefInitialize()` runs during Vivid's plugin probe, the subsequent `dlclose()` corrupts CEF state. The fix is deferred init (already implemented). Don't move `acquire()` back to the constructor.
 

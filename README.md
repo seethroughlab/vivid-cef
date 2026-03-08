@@ -58,7 +58,7 @@ String params (like `url`) go inside the `"params"` object alongside numeric par
 2. Pixels are uploaded to a WebGPU staging texture via `wgpuQueueWriteTexture`
 3. A fullscreen blit pass copies the staging texture to the operator's output
 
-CEF lifecycle is reference-counted: the first Browser operator initializes CEF, subsequent operators share the same CEF process, and CEF shuts down when the last Browser operator is destroyed.
+CEF lifecycle is reference-counted for acquisition: the first Browser operator initializes CEF, and subsequent operators share the same CEF process. In plugin mode, CEF is kept initialized for the host process lifetime (it is not torn down/reinitialized between operator instances).
 
 ### Input Forwarding
 
