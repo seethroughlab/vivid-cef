@@ -23,6 +23,7 @@ struct StreamState {
 
     std::atomic<uint64_t> write_pos{0};
     std::atomic<uint64_t> read_pos{0};
+    std::atomic<uint64_t> generation{1};
 
     std::atomic<uint64_t> underruns{0};
     std::atomic<uint64_t> overruns{0};
@@ -70,11 +71,22 @@ std::shared_ptr<StreamState> find_stream(const std::string& stream_id) {
     return it->second;
 }
 
-inline float clampf(float x, float lo, float hi) {
-    return std::max(lo, std::min(hi, x));
+void clear_ring(StreamState& stream) {
+    stream.write_pos.store(0, std::memory_order_release);
+    stream.read_pos.store(0, std::memory_order_release);
+    stream.last_l = 0.0f;
+    stream.last_r = 0.0f;
 }
 
 }  // namespace
+
+void producer_source_reset(const std::string& stream_id) {
+    auto stream = get_or_create_stream(stream_id);
+    if (!stream) return;
+    std::lock_guard<std::mutex> lock(stream->producer_mutex);
+    stream->generation.fetch_add(1, std::memory_order_acq_rel);
+    clear_ring(*stream);
+}
 
 void producer_stream_started(const std::string& stream_id, int sample_rate, int channels) {
     auto stream = get_or_create_stream(stream_id);
@@ -204,9 +216,7 @@ void release_consumer(const std::string& stream_id, uint64_t consumer_id) {
 }
 
 uint32_t consume_audio(const std::string& stream_id, uint64_t consumer_id,
-                       float* left, float* right, uint32_t frames,
-                       float sync_strength, float max_drift_ms,
-                       bool silence_on_underrun) {
+                       float* left, float* right, uint32_t frames, bool silence_on_underrun) {
     if (!left || !right || frames == 0) return 0;
 
     if (stream_id.empty() || consumer_id == 0) {
@@ -228,36 +238,11 @@ uint32_t consume_audio(const std::string& stream_id, uint64_t consumer_id,
         return 0;
     }
 
-    sync_strength = clampf(sync_strength, 0.0f, 1.0f);
-    max_drift_ms = std::max(1.0f, max_drift_ms);
-
     uint64_t read = stream->read_pos.load(std::memory_order_relaxed);
     uint64_t write = stream->write_pos.load(std::memory_order_acquire);
     uint64_t avail = write - read;
 
-    const uint32_t target_frames = kTargetSampleRate / 4;  // 250ms target fill
-    float drift_frames = static_cast<float>(static_cast<int64_t>(avail) - static_cast<int64_t>(target_frames));
-    float drift_ms = drift_frames * 1000.0f / static_cast<float>(kTargetSampleRate);
-
-    // If buffer is too full, drop a small bounded amount to pull A/V closer.
-    if (sync_strength > 0.0f && drift_ms > max_drift_ms) {
-        float excess_frames = (drift_ms - max_drift_ms) * static_cast<float>(kTargetSampleRate) / 1000.0f;
-        uint32_t correction = static_cast<uint32_t>(std::min(16.0f, excess_frames * sync_strength));
-        correction = std::min<uint32_t>(correction, static_cast<uint32_t>(avail));
-        read += correction;
-        stream->read_pos.store(read, std::memory_order_release);
-        avail -= correction;
-    }
-
-    uint32_t duplicate_count = 0;
-    if (sync_strength > 0.0f && drift_ms < -max_drift_ms) {
-        float lacking_frames = (-max_drift_ms - drift_ms) * static_cast<float>(kTargetSampleRate) / 1000.0f;
-        duplicate_count = static_cast<uint32_t>(std::min(16.0f, lacking_frames * sync_strength));
-        duplicate_count = std::min<uint32_t>(duplicate_count, frames / 2);
-    }
-
-    uint32_t wanted = frames - duplicate_count;
-    uint32_t to_read = static_cast<uint32_t>(std::min<uint64_t>(wanted, avail));
+    uint32_t to_read = static_cast<uint32_t>(std::min<uint64_t>(frames, avail));
 
     for (uint32_t i = 0; i < to_read; ++i) {
         uint32_t idx = static_cast<uint32_t>((read + i) % StreamState::kCapacityFrames);
@@ -272,20 +257,12 @@ uint32_t consume_audio(const std::string& stream_id, uint64_t consumer_id,
 
     stream->read_pos.store(read + to_read, std::memory_order_release);
 
-    // Duplicate the last sample (stretch) if we're under target fill.
-    for (uint32_t i = to_read; i < to_read + duplicate_count && i < frames; ++i) {
-        left[i] = stream->last_l;
-        right[i] = stream->last_r;
-    }
-
-    uint32_t produced = to_read + duplicate_count;
-
-    if (produced < frames) {
+    if (to_read < frames) {
         if (silence_on_underrun) {
-            std::memset(left + produced, 0, (frames - produced) * sizeof(float));
-            std::memset(right + produced, 0, (frames - produced) * sizeof(float));
+            std::memset(left + to_read, 0, (frames - to_read) * sizeof(float));
+            std::memset(right + to_read, 0, (frames - to_read) * sizeof(float));
         } else {
-            for (uint32_t i = produced; i < frames; ++i) {
+            for (uint32_t i = to_read; i < frames; ++i) {
                 left[i] = stream->last_l;
                 right[i] = stream->last_r;
             }
@@ -296,6 +273,28 @@ uint32_t consume_audio(const std::string& stream_id, uint64_t consumer_id,
     return to_read;
 }
 
+uint64_t stream_generation(const std::string& stream_id) {
+    auto stream = find_stream(stream_id);
+    if (!stream) return 0;
+    return stream->generation.load(std::memory_order_acquire);
+}
+
+uint32_t discard_audio(const std::string& stream_id, uint64_t consumer_id, uint32_t frames) {
+    if (stream_id.empty() || consumer_id == 0 || frames == 0) return 0;
+    auto stream = find_stream(stream_id);
+    if (!stream) return 0;
+    if (stream->consumer_owner.load(std::memory_order_acquire) != consumer_id) return 0;
+
+    uint64_t read = stream->read_pos.load(std::memory_order_relaxed);
+    uint64_t write = stream->write_pos.load(std::memory_order_acquire);
+    uint64_t avail = write - read;
+    uint32_t to_discard = static_cast<uint32_t>(std::min<uint64_t>(frames, avail));
+    if (to_discard == 0) return 0;
+
+    stream->read_pos.store(read + to_discard, std::memory_order_release);
+    return to_discard;
+}
+
 StreamStats stream_stats(const std::string& stream_id) {
     StreamStats out{};
     auto stream = find_stream(stream_id);
@@ -304,6 +303,7 @@ StreamStats stream_stats(const std::string& stream_id) {
     uint64_t read = stream->read_pos.load(std::memory_order_relaxed);
     uint64_t write = stream->write_pos.load(std::memory_order_acquire);
     uint64_t avail = write - read;
+    out.available_frames = static_cast<uint32_t>(std::min<uint64_t>(avail, UINT32_MAX));
 
     out.fill_ratio = static_cast<float>(
         std::min<uint64_t>(avail, StreamState::kCapacityFrames - 1)) /
@@ -316,6 +316,7 @@ StreamStats stream_stats(const std::string& stream_id) {
 
     out.underruns = stream->underruns.load(std::memory_order_relaxed);
     out.overruns = stream->overruns.load(std::memory_order_relaxed);
+    out.generation = stream->generation.load(std::memory_order_relaxed);
     out.producer_active = stream->producer_active.load(std::memory_order_relaxed);
     out.producer_sample_rate = stream->producer_sample_rate.load(std::memory_order_relaxed);
     return out;

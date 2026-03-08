@@ -379,3 +379,20 @@ target_include_directories(test_browser_audio_bridge PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 add_test(NAME vivid_cef_test_browser_audio_bridge COMMAND test_browser_audio_bridge)
+
+add_executable(test_browser_audio_bridge_generation
+    tests/test_browser_audio_bridge_generation.cpp
+    src/browser_audio_bridge.cpp
+)
+target_include_directories(test_browser_audio_bridge_generation PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+add_test(NAME vivid_cef_test_browser_audio_bridge_generation COMMAND test_browser_audio_bridge_generation)
+
+add_executable(test_browser_audio_sync_policy
+    tests/test_browser_audio_sync_policy.cpp
+)
+target_include_directories(test_browser_audio_sync_policy PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+add_test(NAME vivid_cef_test_browser_audio_sync_policy COMMAND test_browser_audio_sync_policy)

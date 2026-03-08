@@ -100,6 +100,9 @@ VividCefClient::VividCefClient(CefRefPtr<VividRenderHandler> handler,
     audio_state_ = std::make_shared<AudioRoutingState>();
     audio_state_->set_stream_id(stream_id);
     audio_state_->capture_enabled.store(audio_capture, std::memory_order_relaxed);
+    if (audio_capture && !stream_id.empty()) {
+        vivid_cef_audio::producer_source_reset(stream_id);
+    }
     audio_handler_ = new VividAudioHandler(audio_state_);
 }
 
@@ -132,6 +135,9 @@ void VividCefClient::set_audio_stream_id(const std::string& stream_id) {
         vivid_cef_audio::producer_stream_stopped(prev);
     }
     audio_state_->set_stream_id(stream_id);
+    if (audio_state_->capture_enabled.load(std::memory_order_relaxed) && !stream_id.empty()) {
+        vivid_cef_audio::producer_source_reset(stream_id);
+    }
 }
 
 void VividCefClient::set_audio_capture(bool enabled) {
@@ -139,6 +145,9 @@ void VividCefClient::set_audio_capture(bool enabled) {
     if (!enabled) {
         std::string sid = audio_state_->stream_id();
         if (!sid.empty()) vivid_cef_audio::producer_stream_stopped(sid);
+    } else {
+        std::string sid = audio_state_->stream_id();
+        if (!sid.empty()) vivid_cef_audio::producer_source_reset(sid);
     }
     audio_state_->capture_enabled.store(enabled, std::memory_order_relaxed);
 }

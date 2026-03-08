@@ -1,6 +1,7 @@
 #include "browser_op.h"
 
 #include "browser_input_dispatch.h"
+#include "browser_audio_bridge.h"
 #include "browser_url_utils.h"
 #include "cef_manager.h"
 #include "operator_api/input_state.h"
@@ -88,6 +89,10 @@ void BrowserOp::create_browser() {
     ++g_test_create_browser_attempts;
     if (g_test_disable_browser_create) return;
 
+    if (!stream_id.str_value.empty() && audio_capture.bool_value()) {
+        vivid_cef_audio::producer_source_reset(stream_id.str_value);
+    }
+
     render_handler_ = new VividRenderHandler(kBrowserWidth, kBrowserHeight);
     client_ = new VividCefClient(render_handler_, stream_id.str_value,
                                  audio_capture.bool_value());
@@ -115,6 +120,9 @@ void BrowserOp::create_browser() {
 void BrowserOp::update_url(const std::string& new_url) {
     if (new_url == last_url_) return;
     last_url_ = new_url;
+    if (!stream_id.str_value.empty() && audio_capture.bool_value()) {
+        vivid_cef_audio::producer_source_reset(stream_id.str_value);
+    }
     if (new_url.empty()) return;
 
     std::string resolved = resolve_browser_url(new_url, graph_base_dir_);
