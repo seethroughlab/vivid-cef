@@ -58,7 +58,7 @@ jobs:
         run: cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_OSX_ARCHITECTURES=arm64 -DVIVID_SRC_DIR=${{ github.workspace }}/../vivid -DVIVID_BUILD_DIR=${{ github.workspace }}/../vivid/build
 
       - name: Build operators, helper, and deterministic tests
-        run: cmake --build build --target browser browser_audio_in vivid-cef-helper test_browser_cef_gate test_browser_audio_bridge -j$(sysctl -n hw.logicalcpu)
+        run: cmake --build build --target browser browser_audio_in vivid-cef-helper test_browser_cef_gate test_browser_audio_bridge test_browser_audio_bridge_generation test_browser_audio_sync_policy -j$(sysctl -n hw.logicalcpu)
 
       - name: Run vivid-cef deterministic tests
         run: cd build && ctest --output-on-failure -R vivid_cef_test_
