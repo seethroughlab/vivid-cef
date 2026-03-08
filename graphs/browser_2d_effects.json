@@ -1,0 +1,32 @@
+{
+  "meta": {
+    "id": "browser_2d_effects",
+    "title": "Browser with 2D Effects",
+    "description": "Browser output with bloom glow and feedback motion trails.",
+    "tags": ["browser", "bloom", "feedback", "effects", "demo"],
+    "difficulty": "intermediate",
+    "domains": ["gpu"],
+    "requires_packages": ["vivid-cef"],
+    "featured_rank": 0
+  },
+  "nodes": {
+    "browser1": {
+      "type": "Browser",
+      "params": { "url": "../examples/hello.html", "frame_rate": 60 }
+    },
+    "bloom1": {
+      "type": "Bloom",
+      "params": { "threshold": 0.2, "intensity": 1.5, "radius": 2.0, "passes": 4 }
+    },
+    "feedback1": {
+      "type": "Feedback",
+      "params": { "decay": 0.9, "mix": 0.75, "zoom": 1.015, "rotate": 1.5 }
+    },
+    "vout": { "type": "video_out" }
+  },
+  "connections": [
+    { "from": "browser1/texture", "to": "bloom1/input" },
+    { "from": "bloom1/texture",   "to": "feedback1/input" },
+    { "from": "feedback1/texture","to": "vout/input" }
+  ]
+}

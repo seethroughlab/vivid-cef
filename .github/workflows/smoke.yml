@@ -22,9 +22,7 @@ jobs:
         run: rm -rf ${{ github.workspace }}/../vivid/build
 
       - name: Configure vivid-core
-        run: |
-          ARCH=$(uname -m)
-          cmake -B ${{ github.workspace }}/../vivid/build -S ${{ github.workspace }}/../vivid -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_OSX_ARCHITECTURES=$ARCH
+        run: cmake -B ${{ github.workspace }}/../vivid/build -S ${{ github.workspace }}/../vivid -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_OSX_ARCHITECTURES=arm64
 
       - name: Create app bundle skeleton
         run: mkdir -p ${{ github.workspace }}/../vivid/build/vivid.app/Contents/PlugIns
@@ -32,15 +30,27 @@ jobs:
       - name: Build test_demo_graphs and vivid core operators
         run: cmake --build ${{ github.workspace }}/../vivid/build --target test_demo_graphs operators -j$(sysctl -n hw.logicalcpu)
 
+      - name: Normalize vivid _deps wgpu path for vivid-3d (arm64)
+        run: |
+          DEPS_DIR="${{ github.workspace }}/../vivid/build/_deps"
+          ARM_DIR=""
+          if [ -d "$DEPS_DIR/wgpu-macos-aarch64-release-src" ]; then
+            ARM_DIR="$DEPS_DIR/wgpu-macos-aarch64-release-src"
+          elif [ -d "$DEPS_DIR/wgpu-macos-arm64-release-src" ]; then
+            ARM_DIR="$DEPS_DIR/wgpu-macos-arm64-release-src"
+          fi
+          if [ -n "$ARM_DIR" ]; then
+            rm -rf "$DEPS_DIR/wgpu-macos-x86_64-release-src"
+            ln -s "$ARM_DIR" "$DEPS_DIR/wgpu-macos-x86_64-release-src"
+          fi
+
       - name: Clone vivid-3d
         run: |
           rm -rf ${{ github.workspace }}/../vivid-3d
           git clone --recurse-submodules https://github.com/seethroughlab/vivid-3d.git ${{ github.workspace }}/../vivid-3d
 
       - name: Configure vivid-3d
-        run: |
-          ARCH=$(uname -m)
-          cmake -B ${{ github.workspace }}/../vivid-3d/build -S ${{ github.workspace }}/../vivid-3d -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_OSX_ARCHITECTURES=$ARCH -DVIVID_SRC_DIR=${{ github.workspace }}/../vivid -DVIVID_BUILD_DIR=${{ github.workspace }}/../vivid/build
+        run: cmake -B ${{ github.workspace }}/../vivid-3d/build -S ${{ github.workspace }}/../vivid-3d -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_OSX_ARCHITECTURES=arm64 -DVIVID_SRC_DIR=${{ github.workspace }}/../vivid -DVIVID_BUILD_DIR=${{ github.workspace }}/../vivid/build
 
       - name: Build vivid-3d operators
         run: cmake --build ${{ github.workspace }}/../vivid-3d/build --target operators -j$(sysctl -n hw.logicalcpu)
@@ -49,9 +59,7 @@ jobs:
         run: cp ${{ github.workspace }}/../vivid-3d/build/*.dylib ${{ github.workspace }}/../vivid/build/
 
       - name: Configure package (downloads CEF)
-        run: |
-          ARCH=$(uname -m)
-          cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_OSX_ARCHITECTURES=$ARCH -DVIVID_SRC_DIR=${{ github.workspace }}/../vivid -DVIVID_BUILD_DIR=${{ github.workspace }}/../vivid/build
+        run: cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_OSX_ARCHITECTURES=arm64 -DVIVID_SRC_DIR=${{ github.workspace }}/../vivid -DVIVID_BUILD_DIR=${{ github.workspace }}/../vivid/build
 
       - name: Build operators, helper, and deterministic tests
         run: cmake --build build --target browser browser_audio_in vivid-cef-helper test_browser_cef_gate test_browser_audio_bridge -j$(sysctl -n hw.logicalcpu)
