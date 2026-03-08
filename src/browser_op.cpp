@@ -7,6 +7,7 @@
 
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <vector>
 
 // =============================================================================
@@ -115,8 +116,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4f {
 // =============================================================================
 
 BrowserOp::BrowserOp() {
-    vivid::semantic_tag(url, "path_video");
-    vivid::semantic_shape(url, "path");
+    vivid::semantic_tag(url, "url");
     vivid::semantic_intent(url, "web_url_or_file");
 
     vivid::semantic_tag(zoom, "scale_xy");
@@ -193,10 +193,16 @@ void BrowserOp::update_url(const std::string& new_url) {
 
     if (new_url.empty()) return;
 
-    // Vivid's scheduler resolves FilePath params to absolute paths.
-    // CEF needs a URL scheme — prepend file:// for local paths.
     std::string resolved = new_url;
     if (resolved.find("://") == std::string::npos) {
+        // Not a URL — treat as file path
+        if (!resolved.empty() && resolved[0] != '/') {
+            // Relative path — resolve against graph directory
+            if (!graph_base_dir_.empty()) {
+                resolved = (std::filesystem::path(graph_base_dir_) / resolved)
+                               .lexically_normal().string();
+            }
+        }
         resolved = "file://" + resolved;
     }
 
@@ -254,6 +260,9 @@ void BrowserOp::process(const VividProcessContext* ctx) {
     if (!client_) {
         create_browser();
     }
+
+    // Capture graph base dir for relative path resolution
+    graph_base_dir_ = ctx->graph_base_dir ? ctx->graph_base_dir : "";
 
     // Check for URL changes
     update_url(url.str_value);

@@ -23,7 +23,7 @@ struct BrowserOp : vivid::OperatorBase {
     static constexpr bool kTimeDependent = true;  // pump CEF every frame
 
     // Parameters
-    vivid::Param<vivid::FilePath> url        {"url"};
+    vivid::Param<vivid::TextValue> url        {"url"};
     vivid::Param<float>           zoom       {"zoom", 1.0f, 0.25f, 4.0f};
     vivid::Param<bool>            transparent{"transparent", false};
     vivid::Param<int>             frame_rate {"frame_rate", 60, 1, 120};
@@ -51,6 +51,7 @@ private:
     CefRefPtr<VividRenderHandler> render_handler_;
     CefRefPtr<VividCefClient>     client_;
     std::string                   last_url_;
+    std::string                   graph_base_dir_;
     int                           last_frame_rate_ = 60;
     float                         last_zoom_ = 1.0f;
 
