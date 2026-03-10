@@ -19,9 +19,8 @@
 #include <cstdint>
 #include <string>
 
-struct BrowserOp : vivid::OperatorBase {
+struct BrowserOp : vivid::GpuOperatorBase {
     static constexpr const char* kName   = "Browser";
-    static constexpr VividDomain kDomain = VIVID_DOMAIN_GPU;
     static constexpr bool kTimeDependent = true;  // pump CEF every frame
 
     // Parameters
@@ -45,7 +44,7 @@ struct BrowserOp : vivid::OperatorBase {
         out.push_back({"texture", VIVID_PORT_GPU_TEXTURE, VIVID_PORT_OUTPUT});
     }
 
-    void process(const VividProcessContext* ctx) override;
+    void process_gpu(const VividGpuContext* ctx) override;
     void main_thread_update(double time) override;
     static void set_test_acquire_hook(bool (*hook)());
     static void set_test_disable_browser_create(bool disable);

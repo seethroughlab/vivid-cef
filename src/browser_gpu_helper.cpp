@@ -32,7 +32,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4f {
 
 }  // namespace
 
-bool BrowserGpuHelper::ensure_initialized(VividGpuState* gpu) {
+bool BrowserGpuHelper::ensure_initialized(const VividGpuContext* gpu) {
     if (pipeline_) return true;
     shader_.reset(vivid::gpu::create_shader(gpu->device, kBlitFragment, "Browser Shader"));
     if (!shader_) return false;
@@ -80,7 +80,7 @@ void BrowserGpuHelper::reset() {
     staging_h_ = 0;
 }
 
-void BrowserGpuHelper::recreate_staging(VividGpuState* gpu, uint32_t w, uint32_t h) {
+void BrowserGpuHelper::recreate_staging(const VividGpuContext* gpu, uint32_t w, uint32_t h) {
     bind_group_.reset();
     staging_view_.reset();
     staging_tex_.reset();
@@ -121,7 +121,7 @@ void BrowserGpuHelper::recreate_staging(VividGpuState* gpu, uint32_t w, uint32_t
     bind_group_.reset(wgpuDeviceCreateBindGroup(gpu->device, &bg_desc));
 }
 
-void BrowserGpuHelper::upload_pixels(VividGpuState* gpu, const uint8_t* pixels, uint32_t w, uint32_t h) {
+void BrowserGpuHelper::upload_pixels(const VividGpuContext* gpu, const uint8_t* pixels, uint32_t w, uint32_t h) {
     if (!staging_tex_) return;
     uint32_t src_bpr = w * 4;
     uint32_t aligned_bpr = (src_bpr + 255) & ~255u;
@@ -152,7 +152,7 @@ void BrowserGpuHelper::upload_pixels(VividGpuState* gpu, const uint8_t* pixels, 
     }
 }
 
-void BrowserGpuHelper::upload_frame(VividGpuState* gpu, const uint8_t* pixels, uint32_t w, uint32_t h) {
+void BrowserGpuHelper::upload_frame(const VividGpuContext* gpu, const uint8_t* pixels, uint32_t w, uint32_t h) {
     if (!pixels || w == 0 || h == 0) return;
     if (w != staging_w_ || h != staging_h_) {
         recreate_staging(gpu, w, h);
@@ -160,13 +160,12 @@ void BrowserGpuHelper::upload_frame(VividGpuState* gpu, const uint8_t* pixels, u
     upload_pixels(gpu, pixels, w, h);
 }
 
-void BrowserGpuHelper::set_preferred_size(VividProcessContext* ctx) const {
+void BrowserGpuHelper::set_preferred_size(const VividGpuContext* ctx) const {
     if (!ctx || staging_w_ == 0 || staging_h_ == 0) return;
-    ctx->preferred_tex_width = staging_w_;
-    ctx->preferred_tex_height = staging_h_;
+    vivid_request_output_size(ctx, staging_w_, staging_h_);
 }
 
-void BrowserGpuHelper::render_or_clear(VividGpuState* gpu) {
+void BrowserGpuHelper::render_or_clear(const VividGpuContext* gpu) {
     if (staging_view_ && bind_group_) {
         vivid::gpu::run_pass(gpu->command_encoder, pipeline_.get(), bind_group_.get(),
                              gpu->output_texture_view, "Browser Blit");
@@ -175,7 +174,7 @@ void BrowserGpuHelper::render_or_clear(VividGpuState* gpu) {
     }
 }
 
-void BrowserGpuHelper::clear_output(VividGpuState* gpu) {
+void BrowserGpuHelper::clear_output(const VividGpuContext* gpu) {
     if (!gpu || !gpu->output_texture_view) return;
     WGPURenderPassColorAttachment color_att{};
     color_att.view = gpu->output_texture_view;

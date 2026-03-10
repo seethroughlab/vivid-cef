@@ -4,7 +4,6 @@
 #include "browser_audio_bridge.h"
 #include "browser_url_utils.h"
 #include "cef_manager.h"
-#include "operator_api/input_state.h"
 
 #include <include/cef_browser.h>
 
@@ -139,23 +138,20 @@ void BrowserOp::update_url(const std::string& new_url) {
 
 void BrowserOp::main_thread_update(double /*time*/) {}
 
-void BrowserOp::process(const VividProcessContext* ctx) {
-    VividGpuState* gpu = vivid_gpu(ctx);
-    if (!gpu) return;
-
+void BrowserOp::process_gpu(const VividGpuContext* ctx) {
     if (!cef_acquired_) {
         if (!cef_gate_.ensure_acquired()) {
             if (cef_gate_.consume_should_log_failure()) {
                 std::fprintf(stderr,
                              "[vivid-cef] BrowserOp: CEF acquire failed; retrying next frame\n");
             }
-            gpu_helper_.clear_output(gpu);
+            gpu_helper_.clear_output(ctx);
             return;
         }
         cef_acquired_ = true;
     }
 
-    if (!g_test_skip_gpu_init && !gpu_helper_.ensure_initialized(gpu)) {
+    if (!g_test_skip_gpu_init && !gpu_helper_.ensure_initialized(ctx)) {
         std::fprintf(stderr, "[vivid-cef] GPU init failed\n");
         return;
     }
@@ -164,7 +160,6 @@ void BrowserOp::process(const VividProcessContext* ctx) {
 
     if (!client_) create_browser();
 
-    graph_base_dir_ = ctx->graph_base_dir ? ctx->graph_base_dir : "";
     update_url(url.str_value);
 
     if (client_) {
@@ -194,20 +189,19 @@ void BrowserOp::process(const VividProcessContext* ctx) {
         }
     }
 
-    forward_browser_input_events(client_, vivid_input(ctx), kBrowserWidth, kBrowserHeight);
+    forward_browser_input_events(client_, ctx->input, kBrowserWidth, kBrowserHeight);
 
     if (render_handler_ && render_handler_->has_new_frame()) {
         std::lock_guard<std::mutex> lock(render_handler_->pixel_mutex());
         const uint8_t* pixels = render_handler_->pixels();
         uint32_t w = static_cast<uint32_t>(render_handler_->pixel_width());
         uint32_t h = static_cast<uint32_t>(render_handler_->pixel_height());
-        gpu_helper_.upload_frame(gpu, pixels, w, h);
+        gpu_helper_.upload_frame(ctx, pixels, w, h);
         render_handler_->clear_new_frame();
     }
 
-    auto* mctx = const_cast<VividProcessContext*>(ctx);
-    gpu_helper_.set_preferred_size(mctx);
-    gpu_helper_.render_or_clear(gpu);
+    gpu_helper_.set_preferred_size(ctx);
+    gpu_helper_.render_or_clear(ctx);
 }
 
 VIVID_REGISTER(BrowserOp)

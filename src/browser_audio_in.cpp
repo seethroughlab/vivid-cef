@@ -1,7 +1,7 @@
 #include "browser_audio_bridge.h"
 #include "browser_audio_sync_policy.h"
-#include "operator_api/audio_operator.h"
 #include "operator_api/operator.h"
+#include "operator_api/audio_operator.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -9,9 +9,8 @@
 #include <string>
 #include <vector>
 
-struct BrowserAudioIn : vivid::OperatorBase {
+struct BrowserAudioIn : vivid::AudioOperatorBase {
     static constexpr const char* kName   = "BrowserAudioIn";
-    static constexpr VividDomain kDomain = VIVID_DOMAIN_AUDIO;
     static constexpr bool kTimeDependent = true;
 
     vivid::Param<vivid::TextValue> stream_id      {"stream_id"};
@@ -48,13 +47,10 @@ struct BrowserAudioIn : vivid::OperatorBase {
         out.push_back({"right", VIVID_PORT_AUDIO_FLOAT, VIVID_PORT_OUTPUT});
     }
 
-    void process(const VividProcessContext* ctx) override {
-        auto* audio = vivid_audio(ctx);
-        if (!audio) return;
-
-        float* left = audio->output_buffers[0];
-        float* right = audio->output_buffers[1];
-        uint32_t n = audio->buffer_size;
+    void process_audio(const VividAudioContext* ctx) override {
+        float* left = ctx->output_buffers[0];
+        float* right = ctx->output_buffers[1];
+        uint32_t n = ctx->buffer_size;
 
         const std::string sid = stream_id.str_value;
         if (sid != claimed_stream_id_) {
