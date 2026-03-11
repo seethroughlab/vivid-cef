@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "description": "CEF browser operator — render HTML/CSS/JS/WebGL as GPU textures",
   "author": "Jeff",
+  "category": "ui",
+  "tags": ["ui", "web", "experimental"],
   "build": "cmake",
   "operators": ["browser_audio_in"],
   "gpu_operators": ["browser"],
