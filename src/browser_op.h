@@ -30,6 +30,11 @@ struct BrowserOp : vivid::GpuOperatorBase {
     vivid::Param<bool>            transparent{"transparent", false};
     vivid::Param<bool>            audio_capture{"audio_capture", true};
     vivid::Param<int>             frame_rate {"frame_rate", 60, 1, 120};
+    vivid::Param<float>           input_x    {"input_x", 0.0f, 0.0f, 1.0f};
+    vivid::Param<float>           input_y    {"input_y", 0.0f, 0.0f, 1.0f};
+    vivid::Param<float>           input_w    {"input_w", 1.0f, 0.0f, 1.0f};
+    vivid::Param<float>           input_h    {"input_h", 1.0f, 0.0f, 1.0f};
+    vivid::Param<bool>            input_focus{"input_focus", true};
 
     void collect_params(std::vector<vivid::ParamBase*>& out) override {
         out.push_back(&url);
@@ -38,6 +43,11 @@ struct BrowserOp : vivid::GpuOperatorBase {
         out.push_back(&transparent);
         out.push_back(&audio_capture);
         out.push_back(&frame_rate);
+        out.push_back(&input_x);
+        out.push_back(&input_y);
+        out.push_back(&input_w);
+        out.push_back(&input_h);
+        out.push_back(&input_focus);
     }
 
     void collect_ports(std::vector<VividPortDescriptor>& out) override {
@@ -68,6 +78,7 @@ private:
     float                         last_zoom_ = 1.0f;
     BrowserCefGate                cef_gate_;
     BrowserGpuHelper              gpu_helper_;
+    bool                          mouse_was_inside_ = false;
 
     // Browser dimensions (default 1280x720, could be parameterized later)
     static constexpr int kBrowserWidth  = 1280;

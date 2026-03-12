@@ -43,6 +43,16 @@ BrowserOp::BrowserOp() {
     vivid::semantic_shape(frame_rate, "int");
     vivid::semantic_unit(frame_rate, "Hz");
 
+    vivid::param_group(input_x, "Input");
+    vivid::param_group(input_y, "Input");
+    vivid::param_group(input_w, "Input");
+    vivid::param_group(input_h, "Input");
+    vivid::param_group(input_focus, "Input");
+    vivid::layout_row(input_x, 2, 0);
+    vivid::layout_row(input_y, 2, 1);
+    vivid::layout_row(input_w, 2, 0);
+    vivid::layout_row(input_h, 2, 1);
+
     cef_gate_.set_acquire_fn([]() { return try_acquire_cef(); });
 }
 
@@ -189,7 +199,10 @@ void BrowserOp::process_gpu(const VividGpuContext* ctx) {
         }
     }
 
-    forward_browser_input_events(client_, ctx->input, kBrowserWidth, kBrowserHeight);
+    BrowserInputViewport vp{input_x.value, input_y.value, input_w.value, input_h.value,
+                            input_focus.bool_value()};
+    forward_browser_input_events_viewport(client_, ctx->input, kBrowserWidth, kBrowserHeight,
+                                          vp, mouse_was_inside_);
 
     if (render_handler_ && render_handler_->has_new_frame()) {
         std::lock_guard<std::mutex> lock(render_handler_->pixel_mutex());

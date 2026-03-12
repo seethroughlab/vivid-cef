@@ -68,6 +68,10 @@ int glfw_to_cef_keycode(int glfw_key) {
     }
 }
 
+int clamp_int(int v, int lo, int hi) {
+    return v < lo ? lo : (v > hi ? hi : v);
+}
+
 }  // namespace
 
 void forward_browser_input_events(CefRefPtr<VividCefClient> client,
@@ -138,3 +142,105 @@ void forward_browser_input_events(CefRefPtr<VividCefClient> client,
     }
 }
 
+void forward_browser_input_events_viewport(
+    CefRefPtr<VividCefClient> client,
+    const VividInputState* input,
+    int width, int height,
+    const BrowserInputViewport& vp,
+    bool& mouse_was_inside) {
+    if (!input || !client || !client->browser()) return;
+    if (vp.w == 0.0f || vp.h == 0.0f) return;
+
+    auto host = client->browser()->GetHost();
+
+    for (uint32_t i = 0; i < input->event_count; ++i) {
+        const auto& ev = input->events[i];
+
+        bool is_mouse = (ev.type == VIVID_INPUT_MOUSE_MOVE ||
+                         ev.type == VIVID_INPUT_MOUSE_BUTTON ||
+                         ev.type == VIVID_INPUT_MOUSE_SCROLL);
+
+        if (is_mouse) {
+            bool inside = (ev.mouse_x >= vp.x && ev.mouse_x < vp.x + vp.w &&
+                           ev.mouse_y >= vp.y && ev.mouse_y < vp.y + vp.h);
+
+            float local_x = (ev.mouse_x - vp.x) / vp.w;
+            float local_y = (ev.mouse_y - vp.y) / vp.h;
+            int px = clamp_int(static_cast<int>(local_x * width), 0, width - 1);
+            int py = clamp_int(static_cast<int>(local_y * height), 0, height - 1);
+
+            if (inside) {
+                mouse_was_inside = true;
+
+                CefMouseEvent me;
+                me.x = px;
+                me.y = py;
+                me.modifiers = glfw_to_cef_modifiers(ev.modifiers, input->buttons_held);
+
+                switch (ev.type) {
+                    case VIVID_INPUT_MOUSE_MOVE:
+                        host->SendMouseMoveEvent(me, false);
+                        break;
+                    case VIVID_INPUT_MOUSE_BUTTON: {
+                        bool up = (ev.action == 0);
+                        host->SendMouseClickEvent(me, glfw_to_cef_button(ev.button), up, 1);
+                        break;
+                    }
+                    case VIVID_INPUT_MOUSE_SCROLL:
+                        host->SendMouseWheelEvent(me,
+                                                  static_cast<int>(ev.scroll_dx * 120),
+                                                  static_cast<int>(ev.scroll_dy * 120));
+                        break;
+                    default: break;
+                }
+            } else {
+                // Outside viewport
+                CefMouseEvent me;
+                me.x = px;
+                me.y = py;
+                me.modifiers = glfw_to_cef_modifiers(ev.modifiers, input->buttons_held);
+
+                if (ev.type == VIVID_INPUT_MOUSE_MOVE && mouse_was_inside) {
+                    host->SendMouseMoveEvent(me, true);  // mouseLeave
+                    mouse_was_inside = false;
+                } else if (ev.type == VIVID_INPUT_MOUSE_BUTTON && ev.action == 0) {
+                    // Forward button release so CEF doesn't get stuck in drag state
+                    host->SendMouseClickEvent(me, glfw_to_cef_button(ev.button), true, 1);
+                }
+                // Skip press/scroll outside viewport
+            }
+        } else {
+            // Keyboard events — only forward if focused
+            if (!vp.keyboard_focus) continue;
+
+            switch (ev.type) {
+                case VIVID_INPUT_KEY: {
+                    CefKeyEvent ke;
+                    ke.windows_key_code = glfw_to_cef_keycode(ev.key);
+                    ke.native_key_code = ev.scancode;
+                    ke.modifiers = glfw_to_cef_modifiers(ev.modifiers);
+                    ke.is_system_key = false;
+                    if (ev.action == 1 || ev.action == 2)
+                        ke.type = KEYEVENT_RAWKEYDOWN;
+                    else
+                        ke.type = KEYEVENT_KEYUP;
+                    host->SendKeyEvent(ke);
+                    break;
+                }
+                case VIVID_INPUT_CHAR: {
+                    CefKeyEvent ke;
+                    ke.type = KEYEVENT_CHAR;
+                    ke.windows_key_code = static_cast<int>(ev.codepoint);
+                    ke.character = static_cast<char16_t>(ev.codepoint);
+                    ke.unmodified_character = ke.character;
+                    ke.native_key_code = 0;
+                    ke.modifiers = glfw_to_cef_modifiers(ev.modifiers);
+                    ke.is_system_key = false;
+                    host->SendKeyEvent(ke);
+                    break;
+                }
+                default: break;
+            }
+        }
+    }
+}
