@@ -43,13 +43,12 @@ struct BrowserAudioIn : vivid::AudioOperatorBase {
     }
 
     void collect_ports(std::vector<VividPortDescriptor>& out) override {
-        out.push_back({"left", VIVID_PORT_AUDIO, VIVID_PORT_OUTPUT});
-        out.push_back({"right", VIVID_PORT_AUDIO, VIVID_PORT_OUTPUT});
+        out.push_back({"output", VIVID_PORT_AUDIO, VIVID_PORT_OUTPUT, 0, 2});
     }
 
     void process_audio(const VividAudioContext* ctx) override {
         float* left = ctx->output_buffers[0];
-        float* right = ctx->output_buffers[1];
+        float* right = ctx->output_buffers[0] + ctx->buffer_size;
         uint32_t n = ctx->buffer_size;
 
         const std::string sid = stream_id.str_value;

@@ -24,7 +24,6 @@
   },
   "connections": [
     { "from": "browser1/texture", "to": "vout/input" },
-    { "from": "baudio/left", "to": "aout/left" },
-    { "from": "baudio/right", "to": "aout/right" }
+    { "from": "baudio/output", "to": "aout/input" }
   ]
 }
