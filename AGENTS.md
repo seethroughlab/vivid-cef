@@ -21,7 +21,7 @@ cmake --build build
 
 **Outputs:** `browser.dylib` (plugin), `vivid-cef-helper` (CEF subprocess), plus the CEF framework.
 
-C++17. No automated tests — test manually by loading example graphs in Vivid.
+C++17. Automated coverage exists through the package-local deterministic test suite and graph smoke checks; manual graph testing is still useful for browser lifecycle and rendering validation.
 
 ## File layout
 

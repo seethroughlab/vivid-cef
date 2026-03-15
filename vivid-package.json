@@ -10,7 +10,16 @@
   "gpu_operators": ["browser"],
   "dependencies": {},
   "tests": {
-    "graphs": [],
-    "cpp": []
+    "graphs": [
+      "graphs/browser_hello.json",
+      "graphs/browser_audio.json",
+      "graphs/browser_audio_element.json"
+    ],
+    "cpp": [
+      "tests/test_browser_cef_gate.cpp",
+      "tests/test_browser_audio_bridge.cpp",
+      "tests/test_browser_audio_bridge_generation.cpp",
+      "tests/test_browser_audio_sync_policy.cpp"
+    ]
   }
 }
