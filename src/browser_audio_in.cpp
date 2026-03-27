@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-struct BrowserAudioIn : vivid::AudioOperatorBase {
+struct BrowserAudioIn : vivid::OperatorBase, vivid::AudioProcessable {
     static constexpr const char* kName   = "BrowserAudioIn";
     static constexpr bool kTimeDependent = true;
 

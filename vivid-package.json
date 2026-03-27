@@ -8,6 +8,7 @@
   "build": "cmake",
   "operators": ["browser_audio_in"],
   "gpu_operators": ["browser"],
+  "vivid_core": ">=0.1.0 <2.0.0",
   "dependencies": {},
   "tests": {
     "graphs": [

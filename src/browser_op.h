@@ -19,7 +19,7 @@
 #include <cstdint>
 #include <string>
 
-struct BrowserOp : vivid::GpuOperatorBase {
+struct BrowserOp : vivid::OperatorBase, vivid::GpuProcessable {
     static constexpr const char* kName   = "Browser";
     static constexpr bool kTimeDependent = true;  // pump CEF every frame
 
