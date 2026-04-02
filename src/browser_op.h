@@ -19,6 +19,20 @@
 #include <cstdint>
 #include <string>
 
+/**
+ * @brief Renders HTML, CSS, JavaScript, and WebGL content into a GPU texture via CEF.
+ *
+ * Browser opens a URL or local file, captures the browser surface offscreen, and publishes
+ * the result as a texture for the rest of the graph. It can also publish audio into a paired
+ * BrowserAudioIn stream when audio capture is enabled.
+ *
+ * @param url URL or local file path to load in the embedded browser.
+ * @param stream_id Shared identifier used to pair browser audio capture with BrowserAudioIn.
+ * @param zoom Browser zoom level.
+ * @param transparent Enables transparent browser backgrounds for overlay workflows.
+ * @param audio_capture Enables audio publishing for the configured stream_id.
+ * @param frame_rate Target browser render rate.
+ */
 struct BrowserOp : vivid::OperatorBase, vivid::GpuProcessable {
     static constexpr const char* kName   = "Browser";
     static constexpr bool kTimeDependent = true;  // pump CEF every frame

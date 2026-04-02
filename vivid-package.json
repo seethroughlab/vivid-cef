@@ -1,13 +1,21 @@
 {
   "name": "vivid-cef",
   "version": "0.1.0",
-  "description": "CEF browser operator — render HTML/CSS/JS/WebGL as GPU textures",
+  "description": "CEF browser operator \u2014 render HTML/CSS/JS/WebGL as GPU textures",
   "author": "Jeff",
   "category": "ui",
-  "tags": ["ui", "web", "experimental"],
+  "tags": [
+    "ui",
+    "web",
+    "experimental"
+  ],
   "build": "cmake",
-  "operators": ["browser_audio_in"],
-  "gpu_operators": ["browser"],
+  "operators": [
+    "browser_audio_in"
+  ],
+  "gpu_operators": [
+    "browser"
+  ],
   "vivid_core": ">=0.1.0 <2.0.0",
   "dependencies": {},
   "tests": {
@@ -22,5 +30,9 @@
       "tests/test_browser_audio_bridge_generation.cpp",
       "tests/test_browser_audio_sync_policy.cpp"
     ]
+  },
+  "site_docs": {
+    "overview": "README.md",
+    "preview_image": "docs/images/preview.png"
   }
 }

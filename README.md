@@ -1,160 +1,73 @@
 # vivid-cef
 
-CEF (Chromium Embedded Framework) browser operator for [Vivid](https://github.com/seethroughlab/vivid).
-
-Renders HTML/CSS/JavaScript/WebGL content as GPU textures. Use it for dashboards, data visualizations, WebGL effects, HTML overlays, and more.
+`vivid-cef` embeds Chromium inside Vivid so HTML, CSS, JavaScript, and browser audio can participate directly in the graph.
 
 ## Preview
 
 ![vivid-cef preview](docs/images/preview.png)
 
+## Package docs model
 
-## Installation
+- this `README.md` is the package overview used by the central Vivid docs site
+- operator reference pages are generated from source doc block comments in `src/`
+- the example graphs under `graphs/` are the active smoke surface
 
-In Vivid's package browser, search for `vivid-cef` and click Install. Or from the CLI:
+## Operators
 
+- `Browser` — renders a URL or local HTML file into a GPU texture
+- `BrowserAudioIn` — pulls captured browser audio into the Vivid audio graph
+
+## Install
+
+```bash
+./build/vivid install https://github.com/seethroughlab/vivid-cef.git
 ```
-vivid packages install https://github.com/seethroughlab/vivid-cef
+
+**Note:** first install downloads CEF binaries and builds the wrapper library, so it takes longer than a typical package install.
+
+## Local development
+
+From vivid-core:
+
+```bash
+./build/vivid link ../vivid-cef
+./build/vivid rebuild vivid-cef
 ```
 
-**Note:** First install downloads ~100MB of CEF binaries and compiles the wrapper library, which takes a few minutes.
+## Active example graphs
 
-## Browser Operator
+- `graphs/browser_hello.json`
+- `graphs/browser_audio.json`
+- `graphs/browser_audio_element.json`
+- `graphs/browser_webgl.json`
+- `graphs/interactive_demo.json`
 
-| Parameter   | Type  | Default | Range      | Description                            |
-|-------------|-------|---------|------------|----------------------------------------|
-| url         | File  |         |            | URL or local HTML file path            |
-| stream_id   | Text  |         |            | Shared ID for BrowserAudioIn pairing   |
-| zoom        | Float | 1.0     | 0.25 – 4.0 | Browser zoom level                    |
-| transparent | Bool  | false   |            | Transparent background (for overlays)  |
-| audio_capture | Bool | true   |            | Enable CEF audio capture for stream_id |
-| frame_rate  | Int   | 60      | 1 – 120    | CEF rendering frame rate               |
+## Current contract
 
-### Output
-
-- **texture** (GPU_TEXTURE) — rendered web content as a GPU texture
-
-## BrowserAudioIn Operator
-
-| Parameter        | Type  | Default | Range       | Description                                 |
-|------------------|-------|---------|-------------|---------------------------------------------|
-| stream_id        | Text  |         |             | Must match Browser stream_id                |
-| gain             | Float | 1.0     | 0.0 – 2.0   | Output gain                                 |
-| sync_strength    | Float | 1.0     | 0.0 – 1.0   | Drift correction aggressiveness             |
-| max_drift_ms     | Float | 80.0    | 5.0 – 500.0 | Max drift window before skip/dup correction |
-| dropout_behavior | Enum  | Silence |             | Underrun policy (v1: Silence)               |
-
-### Output
-
-- **left** (AUDIO_FLOAT) — left channel
-- **right** (AUDIO_FLOAT) — right channel
-
-## Examples
-
-HTML pages:
-
-- `examples/hello-world.html` — basic HTML/CSS rendering
-- `examples/hello.html` — minimal hello page
-- `examples/webgl-cube.html` — rotating WebGL cube (won't render — see Known Issues)
-- `examples/dashboard.html` — animated data dashboard
-- `examples/transparent-overlay.html` — transparent overlay with live clock
-- `examples/interactive.html` — mouse/keyboard interaction test (cursor tracking, click dots, scroll resize, key display)
-- `examples/audio-tone.html` — WebAudio oscillator page for BrowserAudioIn testing
-- `examples/audio-element.html` — HTMLAudioElement (`<audio>`) playback test page
-
-Graphs:
-
-- `graphs/browser_hello.json` — loads `hello.html` into a Browser operator and pipes to video output
-- `graphs/browser_webgl.json` — loads `webgl-cube.html` (demonstrates the WebGL limitation)
-- `graphs/browser_audio.json` — Browser + BrowserAudioIn routed to video_out + audio_out
-- `graphs/browser_audio_element.json` — Browser + BrowserAudioIn using HTMLAudioElement source
-
-### Graph Format
-
-String params (like `url`) go inside the `"params"` object alongside numeric params — the Vivid graph parser separates strings from numbers by type. There is no separate `"string_params"` key at the node level.
-
-## How It Works
-
-1. CEF renders web content offscreen to a CPU pixel buffer (OnPaint callback)
-2. Pixels are uploaded to a WebGPU staging texture via `wgpuQueueWriteTexture`
-3. A fullscreen blit pass copies the staging texture to the operator's output
-
-CEF lifecycle is reference-counted for acquisition: the first Browser operator initializes CEF, and subsequent operators share the same CEF process. In plugin mode, CEF is kept initialized for the host process lifetime (it is not torn down/reinitialized between operator instances).
-
-### CEF Acquire Failure + Retry
-
-`BrowserOp` now treats `CefManager::acquire()` as authoritative:
-
-- If acquire fails in `process()`, the operator logs once, outputs a deterministic clear frame, and skips browser creation/CEF calls for that frame.
-- The operator retries acquire on subsequent frames (no permanent lockout).
-- On later success, normal browser creation/rendering resumes.
-
-### Input Forwarding
-
-When the Vivid UI is hidden (tilde key), mouse and keyboard events are forwarded to Browser operators via the `VividInputState` API. Events are translated from GLFW to CEF format:
-
-- Mouse move, click, scroll
-- Key press/release with modifier support
-- Character input (for text fields)
-
-## Requirements
-
-- CMake 3.16+
-- macOS (arm64/x86_64), Windows, or Linux
-- Internet connection for first build (downloads CEF from Spotify CDN)
+- `Browser` outputs a `TEXTURE`.
+- `BrowserAudioIn` outputs `AUDIO_BUFFER` stereo audio.
+- String params such as `url` live inside the node `params` object.
 
 ## Testing
 
-### Local deterministic tests
-
-Configure/build:
+### Deterministic tests
 
 ```bash
-cmake -B build -S . \
-  -DVIVID_SRC_DIR=/path/to/vivid \
-  -DVIVID_BUILD_DIR=/path/to/vivid/build
+cmake -B build -S .   -DVIVID_SRC_DIR=/path/to/vivid   -DVIVID_BUILD_DIR=/path/to/vivid/build
 cmake --build build --target test_browser_cef_gate test_browser_audio_bridge
-```
-
-Run:
-
-```bash
 ctest --test-dir build --output-on-failure -R vivid_cef_test_
 ```
 
-Current deterministic coverage:
+### Smoke parity
 
-- `vivid_cef_test_browser_cef_gate` — acquire failure/retry contract
-- `vivid_cef_test_browser_audio_bridge` — stream claim/release + silence/no-stale-audio behavior
+The package smoke workflow builds the deterministic `vivid_cef_test_*` binaries before running demo-graph smoke coverage.
 
-### Smoke workflow parity
+## Known limitations
 
-The CI smoke workflow builds and runs the deterministic `vivid_cef_test_*` tests before demo-graph smoke checks:
+- WebGL and WebGPU content still do not render in the current single-process configuration.
+- Browser audio supports one consumer per `stream_id`.
+- The package currently relies on a CPU pixel upload path for browser frames.
 
-- [`.github/workflows/smoke.yml`](/Users/jeff/Developer/vivid-cef/.github/workflows/smoke.yml)
+## License
 
-## Known Issues
-
-### WebGL doesn't work
-
-`--disable-gpu` is required in single-process mode, which prevents GL context creation inside the browser. CSS/HTML/JS rendering works fine — only WebGL and WebGPU content won't render.
-
-### Architecture: single-process mode
-
-CEF runs with `--single-process` because Mach port rendezvous IPC fails when CEF is loaded as a `dlopen`'d plugin rather than the main executable. This means no GPU subprocess, no network service subprocess, and no renderer subprocess — everything runs on the main thread. The `Cannot use V8 Proxy resolver in single process mode` warning is benign.
-
-### Historical: CEF re-initialization crash
-
-CEF cannot be initialized, shut down, and re-initialized in the same process. Vivid's plugin probing (`scan_deferred`) opens each dylib, calls `vivid_descriptor()`, then `dlclose`s it. When the dylib was later reopened for real use, `CefInitialize()` would crash with SIGSEGV.
-
-**Fix:** `CefManager::acquire()` was moved out of the `BrowserOp` constructor into `process()`, so CEF is only initialized when the operator actually runs — not during descriptor probing.
-
-## Other Limitations
-
-- **CPU pixel path** — CEF's OnAcceleratedPaint with shared textures is not available on macOS. Pixel upload is ~0.5-1ms for 720p on Apple Silicon.
-- **No WebGL/WebGPU** — GPU is disabled in single-process mode, so GPU-accelerated web content won't render.
-- **Single consumer per stream_id** — only one BrowserAudioIn can claim a stream ID at a time.
-
-## Roadmap
-
-- Rich browser audio diagnostics (buffer depth + drift telemetry ports)
+MIT.

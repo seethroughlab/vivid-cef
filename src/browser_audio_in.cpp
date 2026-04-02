@@ -9,6 +9,18 @@
 #include <string>
 #include <vector>
 
+/**
+ * @brief Pulls captured browser audio into the Vivid audio graph.
+ *
+ * BrowserAudioIn subscribes to a Browser stream by stream_id, applies drift-management policy,
+ * and outputs stereo audio for downstream mixing or effects.
+ *
+ * @param stream_id Shared identifier used to claim a browser audio stream.
+ * @param gain Output gain applied after stream consumption.
+ * @param sync_strength Drift-correction aggressiveness for browser audio sync.
+ * @param max_drift_ms Maximum tolerated drift before skip or duplicate correction is applied.
+ * @param dropout_behavior Underrun behavior used when the browser stream cannot supply audio.
+ */
 struct BrowserAudioIn : vivid::OperatorBase, vivid::AudioProcessable {
     static constexpr const char* kName   = "BrowserAudioIn";
     static constexpr bool kTimeDependent = true;
